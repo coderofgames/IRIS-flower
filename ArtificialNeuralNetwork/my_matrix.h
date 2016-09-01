@@ -157,26 +157,7 @@ public:
 
 			return *out;
 		}
-		else if (this->NumColumns() == b.NumColumns())
-		{
-			// this is why they call it the 
-			if (out) delete out;
-			out = new matrix(this->NumRows(), this->NumColumns());
-
-			for (int i = 0; i < this->NumColumns(); i++)
-			{
-
-				for (int j = 0; j < this->NumRows(); j++)
-				{
-					for (int k = 0; k < b.NumRows(); k++)
-					{
-						(*out)(j, i) += get(j, i) * b(k, i);
-					}
-				}
-			}
-
-			return *out;
-		}
+		
 		return matrix(0, 0);
 	}
 

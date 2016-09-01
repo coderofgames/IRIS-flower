@@ -14,13 +14,9 @@ petal length
 petal width
 so given that information you can discriminate a type easily. 
 
-The neural network layer class does not neccessarily work for all
-possible cases because I have not tested all possible cases, for example
-one bug in the last implementation (in the ANN project) was that the
-Hadamard product operator precedence was wrong, but since I was only
-computing the result of an exclusive OR gate the matrix calculations still
-worked since the matrix of size 1*1 degenerates to multiplication by a scalar.
-
+The neural network layer class is currently working for a deep calculation
+of a network with 2 hidden layers and 1 output layer, and also still
+works for a network with 1 hidden layer and 1 output layer. 
 
 Special Thanks to:
 https://trac.xapian.org/attachment/ticket/598/ann.cpp

@@ -249,10 +249,7 @@ public:
 	}
 };
 
-
-
-//#define VERBOSE
-void Compute_IRIS_data_version_1_(int num_iterations)
+void Compute_IRIS_data_version_0_(int num_iterations)
 {
 	Timer timer;
 
@@ -260,9 +257,328 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 
 	int input_data_size = 1;
 	int num_inputs = 4;
-	int num_hidden = 4;
+	int num_hidden = 8;
 	int num_hidden_2 = 3;
 	int num_outputs = 1;
+
+	// ==========================================
+	matrix input_matrix(1, num_inputs);
+
+
+	float output_error = 0.0f;
+
+
+
+	float alpha = 0.5f;
+	float beta = 0.05f;
+
+	float sum_squared_errors = 0.0f;
+
+	Layer hidden(num_hidden, num_inputs);
+	hidden.init_random_sample_weights_iris();
+
+	Layer hidden_2(num_hidden_2, num_hidden);
+	hidden_2.init_random_sample_weights_iris();
+
+	Layer output(num_outputs, num_hidden_2);
+	output.init_random_sample_weights_iris();
+
+
+	CSV iris_data;
+	iris_data.test();
+
+
+	// create a vector of integers to index the iris data array
+	vector<int> indexes;
+	for (int i = 0; i < iris_data.iris_data.size(); i++)
+		indexes.push_back(i);
+
+	// shuffle the indexes to randomize the order of the data
+	std::random_shuffle(indexes.begin(), indexes.end());
+
+	// compute the half size of the data set
+	int half_size = indexes.size() / 2;
+
+	// create a vector of indexes for training
+	vector<int> training_set;
+	// create a vector of indexes for testing
+	vector< int > test_set;
+
+	// store the first half of the indexes in the training set
+	// and the second half of the indexes in the test set
+	for (int i = 0; i < indexes.size(); i++)
+	{
+		if (i < 100)
+		{
+			training_set.push_back(indexes[i]);
+		}
+		else
+		{
+			test_set.push_back(indexes[i]);
+		}
+	}
+
+
+	//	indexes
+	//vector< matrix > output_buffer;
+
+	cout << endl;
+	cout << "Training, please wait ..." << endl;
+	//return;
+	timer.Start();
+
+	//	Sleep(2000);
+
+	float last_sum_squared_errors = 0.0f;
+	int positive_error_delta_count = 0;
+	int negative_error_delta_count = 0;
+	int alternation_count = 0;
+
+
+
+	for (int p = 0; p < num_iterations; p++)
+	{
+
+		for (int q = 0; q < training_set.size(); q++)
+		{
+			// index remap the shuffled set to the original data
+			input_matrix(0, 0) = iris_data.iris_data[training_set[q]][0];
+			input_matrix(0, 1) = iris_data.iris_data[training_set[q]][1];
+			input_matrix(0, 2) = iris_data.iris_data[training_set[q]][2];
+			input_matrix(0, 3) = iris_data.iris_data[training_set[q]][3];
+
+
+
+
+			hidden.FeedForward(input_matrix);
+			hidden_2.FeedForward(hidden.nuerons_);
+
+			//output.FeedForward(hidden_2.nuerons_);
+			float error_1 = 0.0f, error_2 = 0.0f, error_3 = 0.0f;
+			switch ((int)iris_data.iris_data[training_set[q]][4])
+			{
+			case 0:
+			{
+
+				if (hidden_2.nuerons_(0, 0) < 0.8)
+				{
+					error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(1 - hidden_2.nuerons_(0, 0));
+				}
+				else
+				{
+					error_1 = 0.0f;
+				}
+				if (hidden_2.nuerons_(0, 1) > 0.2)
+				{
+					error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(-hidden_2.nuerons_(0, 1));
+				}
+				else
+				{
+					error_2 = 0.0f;
+				}
+				if (hidden_2.nuerons_(0, 2) > 0.2)
+				{
+					error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(-hidden_2.nuerons_(0, 2));
+				}
+				else
+				{
+					error_3 = 0.0f;
+				}
+
+			}
+			break;
+			case 1:
+			{
+				if (hidden_2.nuerons_(0, 0) > 0.2)
+				{
+					error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(-hidden_2.nuerons_(0, 0));
+				}
+				else
+				{
+					error_1 = 0.0f;
+				}
+				if (hidden_2.nuerons_(0, 1) < 0.8)
+				{
+					error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(1 - hidden_2.nuerons_(0, 1));
+				}
+				else
+				{
+					error_2 = 0.0f;
+				}
+				if (hidden_2.nuerons_(0, 2) > 0.2)
+				{
+					error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(-hidden_2.nuerons_(0, 2));
+				}
+				else
+				{
+					error_3 = 0.0f;
+				}
+			}
+			break;
+			case 2:
+			{
+				if (hidden_2.nuerons_(0, 0) > 0.2)
+				{
+					error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(-hidden_2.nuerons_(0, 0));
+				}
+				else
+				{
+					error_1 = 0.0f;
+				}
+				if (hidden_2.nuerons_(0, 1) > 0.2)
+				{
+					error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(-hidden_2.nuerons_(0, 1));
+				}
+				else
+				{
+					error_2 = 0.0f;
+				}
+				if (hidden_2.nuerons_(0, 2)< 0.8)
+				{
+					error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(1 - hidden_2.nuerons_(0, 2));
+				}
+				else
+				{
+					error_3 = 0.0f;
+				}
+			}
+			break;
+			}
+
+
+			matrix errors(1, 3);
+			errors(0, 0) = error_1;
+			errors(0, 1) = error_2;
+			errors(0, 2) = error_3;
+
+#ifdef VERBOSE
+			//if (p % 250 == 0)
+			{
+
+				hidden.PrintNeurons();
+				hidden_2.PrintNeurons();
+				cout << endl << "errors: " << endl;
+				errors.print();
+			}
+#endif
+
+			//sum_squared_errors += output_error*output_error;
+
+			//		output.BackPropogate_output( output_error);
+
+
+			hidden_2.BackPropogate_output(errors);
+
+			hidden.BackPropogate(hidden_2.weights_, hidden_2.deltas_);
+
+#ifdef VERBOSE
+			//if (p % 250 == 0)
+			{
+				cout << "Deltas" << endl;
+
+
+				hidden.PrintDeltas();
+				hidden_2.PrintDeltas();
+			}
+#endif
+			// weight deltas
+
+			//output.ComputeWeightDeltas(hidden_2.nuerons_, alpha, beta);
+			hidden_2.ComputeWeightDeltas(hidden.nuerons_, alpha, beta);
+			hidden.ComputeWeightDeltas(input_matrix, alpha, beta);
+
+
+
+#ifdef VERBOSE
+			//if (p % 250 == 0)
+			{
+				cout << "Weight Deltas" << endl;
+
+
+				hidden.PrintDeltaWeights();
+				hidden_2.PrintDeltaWeights();
+			}
+#endif
+
+			//output.UpdateWeights();
+			hidden_2.UpdateWeights();
+			hidden.UpdateWeights();
+
+#ifdef VERBOSE
+			//if (p % 250 == 0)
+			{
+
+				hidden.PrintWeights();
+				output.PrintWeights();
+			}
+#endif
+		}
+
+
+	}
+	timer.Update();
+	timer.Stop();
+	cout << "Finished training, Total calculation performed in " << timer.GetTimeDelta() << " seconds" << endl;
+
+
+	sum_squared_errors = 0.0f; // used here to count the number of correct guesses
+
+	for (int q = 0; q < test_set.size(); q++)
+	{
+		/*input_matrix(0, 0) = iris_data.iris_data[q][0];
+		input_matrix(0, 1) = iris_data.iris_data[q][1];
+		input_matrix(0, 2) = iris_data.iris_data[q][2];
+		input_matrix(0, 3) = iris_data.iris_data[q][3];*/
+
+		input_matrix(0, 0) = iris_data.iris_data[test_set[q]][0];
+		input_matrix(0, 1) = iris_data.iris_data[test_set[q]][1];
+		input_matrix(0, 2) = iris_data.iris_data[test_set[q]][2];
+		input_matrix(0, 3) = iris_data.iris_data[test_set[q]][3];
+		//input_matrix(0, 2) = -1.0f; // bias is always -1
+
+
+
+		hidden.FeedForward(input_matrix);
+		hidden_2.FeedForward(hidden.nuerons_);
+
+		//int actual_type = (int)iris_data.iris_data[q][4];
+		int actual_type = (int)iris_data.iris_data[test_set[q]][4];
+
+		int found_type = 0;
+
+		if ((hidden_2.nuerons_(0, 0) > 0.8) && (hidden_2.nuerons_(0, 1) < 0.2) && (hidden_2.nuerons_(0, 2) < 0.2))
+		{
+			found_type = 0;
+		}
+		if ((hidden_2.nuerons_(0, 0) < 0.2) && (hidden_2.nuerons_(0, 1) > 0.8) && (hidden_2.nuerons_(0, 2) < 0.2))
+		{
+			found_type = 1;
+		}
+		if ((hidden_2.nuerons_(0, 0) < 0.2) && (hidden_2.nuerons_(0, 1) < 0.2) && (hidden_2.nuerons_(0, 2)> 0.8))
+		{
+			found_type = 2;
+		}
+
+		cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
+
+		if (found_type == actual_type) sum_squared_errors += 1.0f;
+	}
+
+	cout << "Finished Test, Total classified correctly of " << test_set.size() << " tested: " << (int)sum_squared_errors << endl;
+
+}
+
+//#define VERBOSE
+void Compute_IRIS_data_version_1_(int num_iterations)
+{
+	Timer timer;
+
+
+	int input_data_size = 1;
+	int num_inputs = 4;
+	int num_hidden = 6;
+	int num_hidden_2 = 6;
+	int num_outputs = 3;
 
 	// ==========================================
 	matrix input_matrix(1, num_inputs);
@@ -356,32 +672,33 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 			hidden.FeedForward(input_matrix);
 			hidden_2.FeedForward(hidden.nuerons_);
 
-			//output.FeedForward(hidden_2.nuerons_);
+			output.FeedForward(hidden_2.nuerons_);
+
 			float error_1 = 0.0f, error_2 = 0.0f, error_3 = 0.0f;
 			switch ((int)iris_data.iris_data[training_set[q]][4])
 			{
 			case 0:
 				{
 			
-					if (hidden_2.nuerons_(0, 0) < 0.8)
+					if (output.nuerons_(0, 0) < 0.8)
 					{
-						error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(1 - hidden_2.nuerons_(0, 0));
+						error_1 = output.nuerons_(0, 0)*(1 - output.nuerons_(0, 0))*(1 - output.nuerons_(0, 0));
 					}
 					else
 					{
 						error_1 = 0.0f;
 					}
-					if (hidden_2.nuerons_(0, 1) > 0.2)
+					if (output.nuerons_(0, 1) > 0.2)
 					{
-						error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*( -hidden_2.nuerons_(0, 1));
+						error_2 = output.nuerons_(0, 1)*(1 - output.nuerons_(0, 1))*(-output.nuerons_(0, 1));
 					}
 					else
 					{
 						error_2 = 0.0f;
 					}
-					if (hidden_2.nuerons_(0, 2) > 0.2)
+					if (output.nuerons_(0, 2) > 0.2)
 					{
-						error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(-hidden_2.nuerons_(0, 2));
+						error_3 = output.nuerons_(0, 2)*(1 - output.nuerons_(0, 2))*(-output.nuerons_(0, 2));
 					}
 					else
 					{
@@ -392,25 +709,25 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 				   break;
 			case 1:
 				{
-					if (hidden_2.nuerons_(0, 0) > 0.2)
+					if (output.nuerons_(0, 0) > 0.2)
 					{
-						error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*( -hidden_2.nuerons_(0, 0));
+						error_1 = output.nuerons_(0, 0)*(1 - output.nuerons_(0, 0))*( -output.nuerons_(0, 0));
 					}
 					else
 					{
 						error_1 = 0.0f;
 					}
-					if (hidden_2.nuerons_(0, 1) < 0.8)
+					if (output.nuerons_(0, 1) < 0.8)
 					{
-						error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(1 - hidden_2.nuerons_(0, 1));
+						error_2 = output.nuerons_(0, 1)*(1 - output.nuerons_(0, 1))*(1 - output.nuerons_(0, 1));
 					}
 					else
 					{
 						error_2 = 0.0f;
 					}
-					if (hidden_2.nuerons_(0, 2) > 0.2)
+					if (output.nuerons_(0, 2) > 0.2)
 					{
-						error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(-hidden_2.nuerons_(0, 2));
+						error_3 = output.nuerons_(0, 2)*(1 - output.nuerons_(0, 2))*(-output.nuerons_(0, 2));
 					}
 					else
 					{
@@ -420,25 +737,25 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 				break;
 			case 2:
 				{
-					if (hidden_2.nuerons_(0, 0) > 0.2)
+					if (output.nuerons_(0, 0) > 0.2)
 					{
-						error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(-hidden_2.nuerons_(0, 0));
+						error_1 = output.nuerons_(0, 0)*(1 - output.nuerons_(0, 0))*(-output.nuerons_(0, 0));
 					}
 					else
 					{
 						error_1 = 0.0f;
 					}
-					if (hidden_2.nuerons_(0, 1) > 0.2)
+					if (output.nuerons_(0, 1) > 0.2)
 					{
-						error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(-hidden_2.nuerons_(0, 1));
+						error_2 = output.nuerons_(0, 1)*(1 - output.nuerons_(0, 1))*(-output.nuerons_(0, 1));
 					}
 					else
 					{
 						error_2 = 0.0f;
 					}
-					if (hidden_2.nuerons_(0, 2)< 0.8)
+					if (output.nuerons_(0, 2)< 0.8)
 					{
-						error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(1-hidden_2.nuerons_(0, 2));
+						error_3 = output.nuerons_(0, 2)*(1 - output.nuerons_(0, 2))*(1-output.nuerons_(0, 2));
 					}
 					else
 					{
@@ -467,10 +784,10 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 	
 			//sum_squared_errors += output_error*output_error;
 
-	//		output.BackPropogate_output( output_error);
+			output.BackPropogate_output( errors);
 
 
-			hidden_2.BackPropogate_output(errors);
+			hidden_2.BackPropogate(output.weights_, output.deltas_);
 
 			hidden.BackPropogate(hidden_2.weights_, hidden_2.deltas_);
 
@@ -486,7 +803,7 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 #endif
 			// weight deltas
 
-			//output.ComputeWeightDeltas(hidden_2.nuerons_, alpha, beta);
+			output.ComputeWeightDeltas(hidden_2.nuerons_, alpha, beta);
 			hidden_2.ComputeWeightDeltas(hidden.nuerons_, alpha, beta);
 			hidden.ComputeWeightDeltas(input_matrix, alpha, beta);
 
@@ -503,7 +820,7 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 			}
 #endif
 
-			//output.UpdateWeights();
+			output.UpdateWeights();
 			hidden_2.UpdateWeights();
 			hidden.UpdateWeights();
 
@@ -543,21 +860,21 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 
 		hidden.FeedForward(input_matrix);
 		hidden_2.FeedForward(hidden.nuerons_);
-
+		output.FeedForward(hidden_2.nuerons_);
 		//int actual_type = (int)iris_data.iris_data[q][4];
 		int actual_type = (int)iris_data.iris_data[test_set[q]][4];
 
 		int found_type = 0;
 
-			if ((hidden_2.nuerons_(0, 0) > 0.8) && (hidden_2.nuerons_(0, 1) < 0.2) && (hidden_2.nuerons_(0, 2) < 0.2))
+			if ((output.nuerons_(0, 0) > 0.8) && (output.nuerons_(0, 1) < 0.2) && (output.nuerons_(0, 2) < 0.2))
 			{
 				found_type = 0;
 			}
-			if ((hidden_2.nuerons_(0, 0) < 0.2) && (hidden_2.nuerons_(0, 1) > 0.8) && (hidden_2.nuerons_(0, 2) < 0.2))
+			if ((output.nuerons_(0, 0) < 0.2) && (output.nuerons_(0, 1) > 0.8) && (output.nuerons_(0, 2) < 0.2))
 			{
 				found_type = 1;
 			}
-			if ((hidden_2.nuerons_(0, 0) < 0.2) && (hidden_2.nuerons_(0, 1) < 0.2) && (hidden_2.nuerons_(0, 2)> 0.8))
+			if ((output.nuerons_(0, 0) < 0.2) && (output.nuerons_(0, 1) < 0.2) && (output.nuerons_(0, 2)> 0.8))
 			{
 				found_type = 2;
 			}
@@ -570,10 +887,16 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 	cout << "Finished Test, Total classified correctly of "<< test_set.size() << " tested: " << (int)sum_squared_errors << endl;
 
 }
+
 int main(int argc, char* argv[])
 {
 	Compute_IRIS_data_version_1_(1000);
 
+	cout << "completed Deep calculation with 2 hidden layers " << endl;
+
+	Compute_IRIS_data_version_0_(1000);
+
+	cout << "completed Shallow calculation" << endl;
 	cout << endl << endl;
 
 	return 0;

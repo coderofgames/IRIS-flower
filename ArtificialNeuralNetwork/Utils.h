@@ -70,36 +70,43 @@ public:
 		LoadCSV("iris.csv", output);
 
 
+		static bool first_time = true;
 
-		for (int i = 0; i < output.size(); i++)
+		if (first_time)
 		{
-			for (int j = 0; j < output[i].size(); j++)
+			for (int i = 0; i < output.size(); i++)
 			{
-				cout << output[i][j] << ":";
+				for (int j = 0; j < output[i].size(); j++)
+				{
+					cout << output[i][j] << ":";
 
+				}
+				cout << endl;
 			}
-			cout << endl;
 		}
-
 
 
 
 		RestoreCSV_Iris_Numbers(output, iris_data, found_tags);
-
-		for (int i = 0; i < iris_data.size(); i++)
+		if (first_time)
 		{
-			for (int j = 0; j < iris_data[i].size(); j++)
+			for (int i = 0; i < iris_data.size(); i++)
 			{
-				cout << iris_data[i][j] << ":";
+				for (int j = 0; j < iris_data[i].size(); j++)
+				{
+					cout << iris_data[i][j] << ":";
 
+				}
+				cout << endl;
 			}
-			cout << endl;
+
 		}
 
-		cout << "printing found tags" << endl;
+		cout << endl <<"printing found tags" << endl;
 		for (int p = 0; p < found_tags.size(); p++)
 			cout << found_tags[p] << endl;
 
+		first_time = false;
 	}
 	void RestoreCSV_Iris_Numbers(vector< vector< string> > &v1, vector <vector< float> > &vout, vector<string> &found_tags)
 	{
