@@ -2,6 +2,10 @@
     CONSOLE APPLICATION : ArtificialNeuralNetwork Project Overview
 ========================================================================
 
+NOTE: after recent Matrix optimizations and improvements, the classifier is finishing in 72%
+of the time in the shallow test, and 77% of the time in the deep test (in debug mode - better still, 
+build in release mode)
+
 An extension of the matrix form of Artificial Neural Network employed as a classifier 
 (after much painstaking research and error checking for the correct form of matrix multiplication)
 This example classifies the Iris flower, one of the example CSV (comma seperated value) files that

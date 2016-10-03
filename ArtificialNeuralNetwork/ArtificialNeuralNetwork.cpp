@@ -12,6 +12,9 @@
 #include "my_matrix.h"
 
 #include <math.h>
+//#undef matrix;
+
+typedef LINALG::matrixf matrix;
 
 
 
@@ -29,15 +32,13 @@ float tan_hyperbolic_deriv(float y)
 
 matrix& tan_hyperbolic(matrix &out, matrix &m)
 {
-	if (out.NumColumns() != m.NumColumns() || out.NumRows() != m.NumRows())
+	if (out.NumCols() != m.NumCols() || out.NumRows() != m.NumRows())
 	{
 		out.destroy();
-		out.m_sizeX = m.m_sizeX;
-		out.m_sizeY = m.m_sizeY;
-		out.create();
+		out = m;
 	}
 	for (int i = 0; i < m.NumRows(); i++)
-		for (int j = 0; j < m.NumColumns(); j++)
+		for (int j = 0; j < m.NumCols(); j++)
 			out(i, j) = tan_hyperbolic( m(i, j) );
 
 	return out;
@@ -45,15 +46,12 @@ matrix& tan_hyperbolic(matrix &out, matrix &m)
 
 matrix& tan_hyperbolic_derivative(matrix& out, matrix &m)
 {
-	if (out.NumColumns() != m.NumColumns() || out.NumRows() != m.NumRows())
+	if (out.NumCols() != m.NumCols() || out.NumRows() != m.NumRows())
 	{
-		out.destroy();
-		out.m_sizeX = m.m_sizeX;
-		out.m_sizeY = m.m_sizeY;
-		out.create();
+		out = m;
 	}
 	for (int i = 0; i < m.NumRows(); i++)
-		for (int j = 0; j < m.NumColumns(); j++)
+		for (int j = 0; j < m.NumCols(); j++)
 			out(i, j) = tan_hyperbolic_deriv(m(i, j));
 
 	return out;
@@ -66,15 +64,12 @@ float sigmoid(float x)
 
 matrix& sigmoid(matrix &out, matrix &m)
 {
-	if (out.NumColumns() != m.NumColumns() || out.NumRows() != m.NumRows())
+	if (out.NumCols() != m.NumCols() || out.NumRows() != m.NumRows())
 	{
-		out.destroy();
-		out.m_sizeX = m.m_sizeX;
-		out.m_sizeY = m.m_sizeY;
-		out.create();
+		out = m;
 	}
 	for (int i = 0; i < m.NumRows(); i++)
-		for (int j = 0; j < m.NumColumns(); j++)
+		for (int j = 0; j < m.NumCols(); j++)
 			out(i, j) = 1.f / (1.f + exp(-m(i, j)));
 
 	return out;
@@ -82,15 +77,12 @@ matrix& sigmoid(matrix &out, matrix &m)
 
 matrix& anti_sigmoid(matrix& out, matrix &m)
 {
-	if (out.NumColumns() != m.NumColumns() || out.NumRows() != m.NumRows())
+	if (out.NumCols() != m.NumCols() || out.NumRows() != m.NumRows())
 	{
-		out.destroy();
-		out.m_sizeX = m.m_sizeX;
-		out.m_sizeY = m.m_sizeY;
-		out.create();
+		out = m;
 	}
 	for (int i = 0; i < m.NumRows(); i++)
-		for (int j = 0; j < m.NumColumns(); j++)
+		for (int j = 0; j < m.NumCols(); j++)
 			out(i, j) = m(i, j) * (1 - m(i, j));
 
 	return out;
@@ -116,25 +108,25 @@ public:
 
 	Layer(unsigned int num_elements, unsigned int num_inputs)
 	{
-		nuerons_.m_sizeX = 1;
-		nuerons_.m_sizeY = num_elements;
-		nuerons_.create();
+	//	nuerons_.m_sizeX = 1;
+	//	nuerons_.m_sizeY = num_elements;
+		nuerons_.create(1, num_elements);
 
-		weights_.m_sizeX = num_inputs;
-		weights_.m_sizeY = num_elements;
-		weights_.create();
+		//weights_.m_sizeX = num_inputs;
+		//weights_.m_sizeY = num_elements;
+		weights_.create(num_elements, num_inputs );
 
-		thetas_.m_sizeX = 1;
-		thetas_.m_sizeY = num_elements;
-		thetas_.create();
+		//thetas_.m_sizeX = 1;
+		//thetas_.m_sizeY = num_elements;
+		thetas_.create(1, num_elements);
 
-		delta_weights_.m_sizeX = num_inputs;
-		delta_weights_.m_sizeY = num_elements;
-		delta_weights_.create();
+		//delta_weights_.m_sizeX = num_inputs;
+		//delta_weights_.m_sizeY = num_elements;
+		delta_weights_.create(num_inputs, num_elements);
 
-		delta_thetas_.m_sizeX = 1;
-		delta_thetas_.m_sizeY = num_elements;
-		delta_thetas_.create();
+		//delta_thetas_.m_sizeX = 1;
+		//delta_thetas_.m_sizeY = num_elements;
+		delta_thetas_.create(1, num_elements);
 	}
 
 
@@ -143,7 +135,7 @@ public:
 	{
 		for (int i = 0; i < weights_.NumRows(); i++)
 		{
-			for (int j = 0; j < weights_.NumColumns(); j++)
+			for (int j = 0; j < weights_.NumCols(); j++)
 			{
 				weights_(i, j) = RandomFloat(0, 1)/5;
 			}
@@ -151,7 +143,7 @@ public:
 
 		for (int i = 0; i < thetas_.NumRows(); i++)
 		{
-			for (int j = 0; j < thetas_.NumColumns(); j++)
+			for (int j = 0; j < thetas_.NumCols(); j++)
 			{
 				thetas_(i, j) = RandomFloat(0, 1) / 5;
 			}
@@ -164,7 +156,8 @@ public:
 
 	void FeedForward(matrix &input_matrix)
 	{
-		nuerons_ = input_matrix * weights_ - thetas_;
+		//weights_.transpose();
+		nuerons_ = input_matrix.mul_by_transpose(  weights_ )- thetas_;
 		sigmoid(nuerons_, nuerons_);
 	}
 
@@ -172,17 +165,17 @@ public:
 	{
 		anti_sigmoid(deltas_, nuerons_);
 
-		next_layer_weights_.transpose();
+	//	next_layer_weights_.transpose();
 
-	//	next_layer_delta_weights_.transpose();
+
 
 		// OPERATOR PRECEDENCE! it is easy to forget what you are computing
 		deltas_ = deltas_ | (next_layer_delta_weights_ * next_layer_weights_ ); 
 
 
-	//	next_layer_delta_weights_.transpose();
 
-		next_layer_weights_.transpose();
+
+	//	next_layer_weights_.transpose();
 
 	}
 
@@ -198,15 +191,15 @@ public:
 
 	void ComputeWeightDeltas(matrix &input_matrix, float alpha, float beta)
 	{
+	//	delta_weights_.transpose();
+
+	//	deltas_.transpose();
+
+		delta_weights_ = (delta_weights_ * beta).add_transposed( deltas_.mul_transposed( input_matrix )* alpha );
+
 		delta_weights_.transpose();
 
-		deltas_.transpose();
-
-		delta_weights_ = delta_weights_ * beta + deltas_* input_matrix * alpha;
-
-		delta_weights_.transpose();
-
-		deltas_.transpose();
+	//	deltas_.transpose();
 
 		delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
 	}
@@ -214,7 +207,7 @@ public:
 
 	void UpdateWeights()
 	{
-		weights_ = weights_ + delta_weights_;// 
+		weights_ = delta_weights_ .add_transposed( weights_);// 
 
 		thetas_ = thetas_ + delta_thetas_ ;
 	}
@@ -222,30 +215,30 @@ public:
 	void PrintNeurons()
 	{
 		cout << "Neurons" << endl;
-		nuerons_.print();
+		nuerons_.print(4);
 		cout <<  endl;
 	}
 
 	void PrintDeltas()
 	{
 		cout << "Deltas" << endl;
-		deltas_.print();
+		deltas_.print(4);
 	}
 	void PrintDeltaWeights()
 	{
 		cout << "Delta Weights" << endl;
-		delta_weights_.print();
+		delta_weights_.print(4);
 	}
 	void PrintDeltaThetas()
 	{
 		cout << "Delta Thetas" << endl;
-		delta_thetas_.print();
+		delta_thetas_.print(4);
 	}
 
 	void PrintWeights()
 	{
 		cout << "Weights" << endl;
-		weights_.print();
+		weights_.print(4);
 	}
 };
 
