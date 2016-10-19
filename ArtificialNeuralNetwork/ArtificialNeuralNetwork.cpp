@@ -62,6 +62,11 @@ float sigmoid(float x)
 	return 1.f / (1.f + exp(-x));
 }
 
+float sigmoid_deriv(float x)
+{
+	return x * (1 - x);
+}
+
 matrix& sigmoid(matrix &out, matrix &m)
 {
 	if (out.NumCols() != m.NumCols() || out.NumRows() != m.NumRows())
@@ -75,7 +80,7 @@ matrix& sigmoid(matrix &out, matrix &m)
 	return out;
 }
 
-matrix& anti_sigmoid(matrix& out, matrix &m)
+matrix& sigmoid_deriv(matrix& out, matrix &m)
 {
 	if (out.NumCols() != m.NumCols() || out.NumRows() != m.NumRows())
 	{
@@ -89,158 +94,386 @@ matrix& anti_sigmoid(matrix& out, matrix &m)
 }
 
 
-
-
-//#define VERBOSE
-class Layer
+matrix& pow(matrix& source, float exponent)
 {
-public:
-	matrix nuerons_;
-	matrix thetas_;
-	matrix weights_;
-
-	matrix delta_thetas_;
-	matrix delta_weights_;
-
-	matrix deltas_;
-
-	Layer(){}
-
-	Layer(unsigned int num_elements, unsigned int num_inputs)
+	for (int i = 0; i < source.NumRows(); i++)
 	{
-	//	nuerons_.m_sizeX = 1;
-	//	nuerons_.m_sizeY = num_elements;
-		nuerons_.create(1, num_elements);
-
-		//weights_.m_sizeX = num_inputs;
-		//weights_.m_sizeY = num_elements;
-		weights_.create(num_elements, num_inputs );
-
-		//thetas_.m_sizeX = 1;
-		//thetas_.m_sizeY = num_elements;
-		thetas_.create(1, num_elements);
-
-		//delta_weights_.m_sizeX = num_inputs;
-		//delta_weights_.m_sizeY = num_elements;
-		delta_weights_.create(num_inputs, num_elements);
-
-		//delta_thetas_.m_sizeX = 1;
-		//delta_thetas_.m_sizeY = num_elements;
-		delta_thetas_.create(1, num_elements);
-	}
-
-
-
-	void init_random_sample_weights_iris()
-	{
-		for (int i = 0; i < weights_.NumRows(); i++)
+		for (int j = 0; j < source.NumCols(); j++)
 		{
-			for (int j = 0; j < weights_.NumCols(); j++)
+			source(i, j) = pow(source(i, j), exponent);
+		}
+	}
+	return source;
+}
+
+matrix& ln(matrix& source) 
+{
+	for (int i = 0; i < source.NumRows(); i++)
+	{
+		for (int j = 0; j < source.NumCols(); j++)
+		{
+			source(i, j) = log(source(i, j));
+		}
+	}
+	return source;
+}
+
+matrix& exp(matrix& source)
+{
+	for (int i = 0; i < source.NumRows(); i++)
+	{
+		for (int j = 0; j < source.NumCols(); j++)
+		{
+			source(i, j) = exp(source(i, j));
+		}
+	}
+	return source;
+}
+
+float SUM(matrix& source)
+{
+	float sum = 0.0f;
+	for (int i = 0; i < source.NumRows(); i++)
+	{
+		for (int j = 0; j < source.NumCols(); j++)
+		{
+			sum += source(i, j);// = exp(source(i, j));
+		}
+	}
+	return sum;
+}
+
+
+namespace Vanilla_Layer
+{
+	class Layer
+	{
+	public:
+		matrix neurons_;
+		matrix thetas_;
+		matrix weights_;
+
+		matrix delta_thetas_;
+		matrix delta_weights_;
+
+		matrix deltas_;
+
+		Layer(){}
+
+		Layer(unsigned int num_elements, unsigned int num_inputs)
+		{
+			neurons_.create(1, num_elements);
+			weights_.create(num_inputs, num_elements);
+			thetas_.create(1, num_elements);
+			delta_weights_.create(num_inputs, num_elements);
+			delta_thetas_.create(1, num_elements);
+		}
+
+
+
+		void init_random_sample_weights_iris()
+		{
+			for (int i = 0; i < weights_.NumRows(); i++)
 			{
-				weights_(i, j) = RandomFloat(0, 1)/5;
+				for (int j = 0; j < weights_.NumCols(); j++)
+				{
+					weights_(i, j) = RandomFloat(0, 1) / 5;
+				}
+			}
+
+			for (int i = 0; i < thetas_.NumRows(); i++)
+			{
+				for (int j = 0; j < thetas_.NumCols(); j++)
+				{
+					thetas_(i, j) = RandomFloat(0, 1) / 5;
+				}
 			}
 		}
 
-		for (int i = 0; i < thetas_.NumRows(); i++)
+
+
+		//1 7 ... 7 3   3 3
+
+		void FeedForward(matrix &input_matrix)
 		{
-			for (int j = 0; j < thetas_.NumCols(); j++)
+			neurons_ = input_matrix * weights_ - thetas_;
+			sigmoid(neurons_, neurons_);
+		}
+
+		void BackPropogate(matrix &next_layer_weights_, matrix &next_layer_delta_weights_)
+		{
+			sigmoid_deriv(deltas_, neurons_);
+
+			next_layer_weights_.transpose();
+
+			//	next_layer_delta_weights_.transpose();
+
+			// OPERATOR PRECEDENCE! it is easy to forget what you are computing
+			deltas_ = deltas_ | (next_layer_delta_weights_ * next_layer_weights_);
+
+
+			//	next_layer_delta_weights_.transpose();
+
+			next_layer_weights_.transpose();
+
+		}
+
+		void BackPropogate_output(matrix& output_error)
+		{
+			sigmoid_deriv(deltas_, neurons_);
+
+			//	deltas_ = (deltas_)| output_error;
+
+			deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
+
+		}
+
+		void ComputeWeightDeltas(matrix &input_matrix, float alpha, float beta)
+		{
+			delta_weights_.transpose();
+
+			deltas_.transpose();
+
+			delta_weights_ = delta_weights_ * beta + deltas_* input_matrix * alpha;
+
+			delta_weights_.transpose();
+
+			deltas_.transpose();
+
+			delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
+		}
+
+
+		void UpdateWeights()
+		{
+			weights_ = weights_ + delta_weights_;// 
+
+			thetas_ = thetas_ + delta_thetas_;
+		}
+
+		void PrintNeurons()
+		{
+			cout << "Neurons" << endl;
+			neurons_.print(3);
+			cout << endl;
+		}
+
+		void PrintDeltas()
+		{
+			cout << "Deltas" << endl;
+			deltas_.print(3);
+		}
+		void PrintDeltaWeights()
+		{
+			cout << "Delta Weights" << endl;
+			delta_weights_.print(3);
+		}
+		void PrintDeltaThetas()
+		{
+			cout << "Delta Thetas" << endl;
+			delta_thetas_.print(3);
+		}
+
+		void PrintWeights()
+		{
+			cout << "Weights" << endl;
+			weights_.print(3);
+		}
+	};
+}
+
+
+namespace Optimized_Layer
+{
+
+	//#define VERBOSE
+	class Layer
+	{
+	public:
+		matrix neurons_;
+		matrix thetas_;
+		matrix weights_;
+
+		matrix delta_thetas_;
+		matrix delta_weights_;
+
+		matrix deltas_;
+
+		Layer(){}
+
+		Layer(unsigned int num_elements, unsigned int num_inputs)
+		{
+
+
+			neurons_.create(1, num_elements);
+
+
+			weights_.create(num_elements, num_inputs);
+
+
+			thetas_.create(1, num_elements);
+
+	
+			delta_weights_.create(num_inputs, num_elements);
+
+	
+			delta_thetas_.create(1, num_elements);
+		}
+
+
+
+		void init_random_sample_weights_iris()
+		{
+			for (int i = 0; i < weights_.NumRows(); i++)
 			{
-				thetas_(i, j) = RandomFloat(0, 1) / 5;
+				for (int j = 0; j < weights_.NumCols(); j++)
+				{
+					weights_(i, j) = RandomFloat(0, 1) / 5;
+				}
+			}
+
+			for (int i = 0; i < thetas_.NumRows(); i++)
+			{
+				for (int j = 0; j < thetas_.NumCols(); j++)
+				{
+					thetas_(i, j) = RandomFloat(0, 1) / 5;
+				}
 			}
 		}
-	}
 
 
 
-	//1 7 ... 7 3   3 3
+		//1 7 ... 7 3   3 3
 
-	void FeedForward(matrix &input_matrix)
-	{
-		//weights_.transpose();
-		nuerons_ = input_matrix.mul_by_transpose(  weights_ )- thetas_;
-		sigmoid(nuerons_, nuerons_);
-	}
+		void FeedForward(matrix &input_matrix)
+		{
+			//weights_.transpose();
+			neurons_ = input_matrix.mul_by_transpose(weights_) - thetas_;
+			sigmoid(neurons_, neurons_);
+		}
 
-	void BackPropogate(matrix &next_layer_weights_, matrix &next_layer_delta_weights_)
-	{
-		anti_sigmoid(deltas_, nuerons_);
+		/**
+		This is fancy, the output from the softmax function can be thought
+		of as a probability distribution : see NeuralNetworks and Deep learning by
+		Michael Nielson
+		*/
+		void FeedForward_Softmax(matrix &input_matrix)
+		{
+			//weights_.transpose();
+			neurons_ = input_matrix.mul_by_transpose(weights_) - thetas_;
 
-	//	next_layer_weights_.transpose();
+			neurons_ = exp(neurons_);
+			float sum = SUM(neurons_);
+			neurons_ = neurons_ / sum;
+		}
 
+		matrix& log_likliehood_cost_softmax(matrix& out)
+		{
+			out.ToZero();
+			return ln(out);
+		}
 
+		void BackPropogate(matrix &next_layer_weights_, matrix &next_layer_delta_weights_)
+		{
+			sigmoid_deriv(deltas_, neurons_);
 
-		// OPERATOR PRECEDENCE! it is easy to forget what you are computing
-		deltas_ = deltas_ | (next_layer_delta_weights_ * next_layer_weights_ ); 
-
-
-
-
-	//	next_layer_weights_.transpose();
-
-	}
-
-	void BackPropogate_output( matrix& output_error)
-	{
-		anti_sigmoid(deltas_, nuerons_);
-
-	//	deltas_ = (deltas_)| output_error;
-
-		deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
-
-	}
-
-	void ComputeWeightDeltas(matrix &input_matrix, float alpha, float beta)
-	{
-	//	delta_weights_.transpose();
-
-	//	deltas_.transpose();
-
-		delta_weights_ = (delta_weights_ * beta).add_transposed( deltas_.mul_transposed( input_matrix )* alpha );
-
-		delta_weights_.transpose();
-
-	//	deltas_.transpose();
-
-		delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
-	}
+			//	next_layer_weights_.transpose();
 
 
-	void UpdateWeights()
-	{
-		weights_ = delta_weights_ .add_transposed( weights_);// 
 
-		thetas_ = thetas_ + delta_thetas_ ;
-	}
+			// OPERATOR PRECEDENCE! it is easy to forget what you are computing
+			deltas_ = deltas_ | (next_layer_delta_weights_ * next_layer_weights_);
 
-	void PrintNeurons()
-	{
-		cout << "Neurons" << endl;
-		nuerons_.print(4);
-		cout <<  endl;
-	}
 
-	void PrintDeltas()
-	{
-		cout << "Deltas" << endl;
-		deltas_.print(4);
-	}
-	void PrintDeltaWeights()
-	{
-		cout << "Delta Weights" << endl;
-		delta_weights_.print(4);
-	}
-	void PrintDeltaThetas()
-	{
-		cout << "Delta Thetas" << endl;
-		delta_thetas_.print(4);
-	}
 
-	void PrintWeights()
-	{
-		cout << "Weights" << endl;
-		weights_.print(4);
-	}
-};
+
+			//	next_layer_weights_.transpose();
+
+		}
+
+		void BackPropogate_output(matrix& output_error)
+		{
+			sigmoid_deriv(deltas_, neurons_);
+
+			//	deltas_ = (deltas_)| output_error;
+
+			deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
+
+		}
+
+		void ComputeWeightDeltas(matrix &input_matrix, float alpha, float beta)
+		{
+			//	delta_weights_.transpose();
+
+			//	deltas_.transpose();
+
+			delta_weights_ = (delta_weights_ * beta).add_transposed(deltas_.mul_transposed(input_matrix)* alpha);
+
+			delta_weights_.transpose();
+
+			//	deltas_.transpose();
+
+			delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
+		}
+
+
+		void UpdateWeights()
+		{
+			weights_ = delta_weights_.add_transposed(weights_);// 
+
+			thetas_ = thetas_ + delta_thetas_;
+		}
+
+
+
+		void PrintNeurons()
+		{
+			cout << "Neurons" << endl;
+			neurons_.print(4);
+			cout << endl;
+		}
+
+		void PrintDeltas()
+		{
+			cout << "Deltas" << endl;
+			deltas_.print(4);
+		}
+		void PrintDeltaWeights()
+		{
+			cout << "Delta Weights" << endl;
+			delta_weights_.print(4);
+		}
+		void PrintDeltaThetas()
+		{
+			cout << "Delta Thetas" << endl;
+			delta_thetas_.print(4);
+		}
+
+		void PrintWeights()
+		{
+			cout << "Weights" << endl;
+			weights_.print(4);
+		}
+	};
+}
+
+
+
+matrix& QuadraticCostFunction(matrix& out, matrix& desired_outputs, matrix& outputs)
+{
+	out = pow((desired_outputs - outputs),2) *0.5 ;
+
+	return out;
+}
+
+
+
+
+using namespace Vanilla_Layer;
+// abs(expected - y)
+//  
+// y(1-y)^2  = (1-y) * sigmoid_deriv(y) =>  (expected - y) * ssigmoid_deriv(y)
+// -y^2(1-y) = -y * sigmoid_deriv(y) = > (expected - y ) * sigmoid_deriv(y)
 
 void Compute_IRIS_data_version_0_(int num_iterations)
 {
@@ -344,105 +577,42 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 
 
 			hidden.FeedForward(input_matrix);
-			hidden_2.FeedForward(hidden.nuerons_);
+			hidden_2.FeedForward(hidden.neurons_);
 
-			//output.FeedForward(hidden_2.nuerons_);
-			float error_1 = 0.0f, error_2 = 0.0f, error_3 = 0.0f;
-			switch ((int)iris_data.iris_data[training_set[q]][4])
+			matrix expected(1,3);
+			for (int p = 0; p < 3; p++)
 			{
-			case 0:
-			{
-
-				if (hidden_2.nuerons_(0, 0) < 0.8)
+				if ((int)iris_data.iris_data[training_set[q]][4] == p)
 				{
-					error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(1 - hidden_2.nuerons_(0, 0));
+					expected(0,p) = 1.0;
 				}
 				else
 				{
-					error_1 = 0.0f;
-				}
-				if (hidden_2.nuerons_(0, 1) > 0.2)
-				{
-					error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(-hidden_2.nuerons_(0, 1));
-				}
-				else
-				{
-					error_2 = 0.0f;
-				}
-				if (hidden_2.nuerons_(0, 2) > 0.2)
-				{
-					error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(-hidden_2.nuerons_(0, 2));
-				}
-				else
-				{
-					error_3 = 0.0f;
-				}
-
-			}
-			break;
-			case 1:
-			{
-				if (hidden_2.nuerons_(0, 0) > 0.2)
-				{
-					error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(-hidden_2.nuerons_(0, 0));
-				}
-				else
-				{
-					error_1 = 0.0f;
-				}
-				if (hidden_2.nuerons_(0, 1) < 0.8)
-				{
-					error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(1 - hidden_2.nuerons_(0, 1));
-				}
-				else
-				{
-					error_2 = 0.0f;
-				}
-				if (hidden_2.nuerons_(0, 2) > 0.2)
-				{
-					error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(-hidden_2.nuerons_(0, 2));
-				}
-				else
-				{
-					error_3 = 0.0f;
+					expected(0,p) = 0.0;
 				}
 			}
-			break;
-			case 2:
+
+			// with the expected vector complete
+			// if abs(expected - y) > 0.2 
+			// this means that the output neuron is 
+			// a) less than 0.8 if it was supposed to be 1
+			// b) greater than 0.2 if it was supposed to be 0
+			//
+			// then compute error = (expected - y) * sigmoid_deriv(y);
+			// else error = 0
+			matrix errors = expected - hidden_2.neurons_;
+
+			for (int p = 0; p < errors.NumCols(); p++)
 			{
-				if (hidden_2.nuerons_(0, 0) > 0.2)
+				if (abs(errors(0, p)) > 0.2)
 				{
-					error_1 = hidden_2.nuerons_(0, 0)*(1 - hidden_2.nuerons_(0, 0))*(-hidden_2.nuerons_(0, 0));
+					errors(0, p) = errors(0, p) * sigmoid_deriv(hidden_2.neurons_(0, p));
 				}
-				else
-				{
-					error_1 = 0.0f;
-				}
-				if (hidden_2.nuerons_(0, 1) > 0.2)
-				{
-					error_2 = hidden_2.nuerons_(0, 1)*(1 - hidden_2.nuerons_(0, 1))*(-hidden_2.nuerons_(0, 1));
-				}
-				else
-				{
-					error_2 = 0.0f;
-				}
-				if (hidden_2.nuerons_(0, 2)< 0.8)
-				{
-					error_3 = hidden_2.nuerons_(0, 2)*(1 - hidden_2.nuerons_(0, 2))*(1 - hidden_2.nuerons_(0, 2));
-				}
-				else
-				{
-					error_3 = 0.0f;
-				}
+				else errors(0, p) = 0.0f;
 			}
-			break;
-			}
+			
 
-
-			matrix errors(1, 3);
-			errors(0, 0) = error_1;
-			errors(0, 1) = error_2;
-			errors(0, 2) = error_3;
+			
 
 #ifdef VERBOSE
 			//if (p % 250 == 0)
@@ -476,8 +646,8 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 #endif
 			// weight deltas
 
-			//output.ComputeWeightDeltas(hidden_2.nuerons_, alpha, beta);
-			hidden_2.ComputeWeightDeltas(hidden.nuerons_, alpha, beta);
+			//output.ComputeWeightDeltas(hidden_2.neurons_, alpha, beta);
+			hidden_2.ComputeWeightDeltas(hidden.neurons_, alpha, beta);
 			hidden.ComputeWeightDeltas(input_matrix, alpha, beta);
 
 
@@ -532,22 +702,22 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 
 
 		hidden.FeedForward(input_matrix);
-		hidden_2.FeedForward(hidden.nuerons_);
+		hidden_2.FeedForward(hidden.neurons_);
 
 		//int actual_type = (int)iris_data.iris_data[q][4];
 		int actual_type = (int)iris_data.iris_data[test_set[q]][4];
 
 		int found_type = 0;
 
-		if ((hidden_2.nuerons_(0, 0) > 0.8) && (hidden_2.nuerons_(0, 1) < 0.2) && (hidden_2.nuerons_(0, 2) < 0.2))
+		if ((hidden_2.neurons_(0, 0) > 0.8) && (hidden_2.neurons_(0, 1) < 0.2) && (hidden_2.neurons_(0, 2) < 0.2))
 		{
 			found_type = 0;
 		}
-		if ((hidden_2.nuerons_(0, 0) < 0.2) && (hidden_2.nuerons_(0, 1) > 0.8) && (hidden_2.nuerons_(0, 2) < 0.2))
+		if ((hidden_2.neurons_(0, 0) < 0.2) && (hidden_2.neurons_(0, 1) > 0.8) && (hidden_2.neurons_(0, 2) < 0.2))
 		{
 			found_type = 1;
 		}
-		if ((hidden_2.nuerons_(0, 0) < 0.2) && (hidden_2.nuerons_(0, 1) < 0.2) && (hidden_2.nuerons_(0, 2)> 0.8))
+		if ((hidden_2.neurons_(0, 0) < 0.2) && (hidden_2.neurons_(0, 1) < 0.2) && (hidden_2.neurons_(0, 2)> 0.8))
 		{
 			found_type = 2;
 		}
@@ -663,107 +833,42 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 
 
 			hidden.FeedForward(input_matrix);
-			hidden_2.FeedForward(hidden.nuerons_);
+			hidden_2.FeedForward(hidden.neurons_);
 
-			output.FeedForward(hidden_2.nuerons_);
+			output.FeedForward(hidden_2.neurons_);
 
-			float error_1 = 0.0f, error_2 = 0.0f, error_3 = 0.0f;
-			switch ((int)iris_data.iris_data[training_set[q]][4])
+			matrix expected(1, 3);
+			for (int p = 0; p < 3; p++)
 			{
-			case 0:
+				if ((int)iris_data.iris_data[training_set[q]][4] == p)
 				{
-			
-					if (output.nuerons_(0, 0) < 0.8)
-					{
-						error_1 = output.nuerons_(0, 0)*(1 - output.nuerons_(0, 0))*(1 - output.nuerons_(0, 0));
-					}
-					else
-					{
-						error_1 = 0.0f;
-					}
-					if (output.nuerons_(0, 1) > 0.2)
-					{
-						error_2 = output.nuerons_(0, 1)*(1 - output.nuerons_(0, 1))*(-output.nuerons_(0, 1));
-					}
-					else
-					{
-						error_2 = 0.0f;
-					}
-					if (output.nuerons_(0, 2) > 0.2)
-					{
-						error_3 = output.nuerons_(0, 2)*(1 - output.nuerons_(0, 2))*(-output.nuerons_(0, 2));
-					}
-					else
-					{
-						error_3 = 0.0f;
-					}
-				
+					expected(0, p) = 1.0;
 				}
-				   break;
-			case 1:
+				else
 				{
-					if (output.nuerons_(0, 0) > 0.2)
-					{
-						error_1 = output.nuerons_(0, 0)*(1 - output.nuerons_(0, 0))*( -output.nuerons_(0, 0));
-					}
-					else
-					{
-						error_1 = 0.0f;
-					}
-					if (output.nuerons_(0, 1) < 0.8)
-					{
-						error_2 = output.nuerons_(0, 1)*(1 - output.nuerons_(0, 1))*(1 - output.nuerons_(0, 1));
-					}
-					else
-					{
-						error_2 = 0.0f;
-					}
-					if (output.nuerons_(0, 2) > 0.2)
-					{
-						error_3 = output.nuerons_(0, 2)*(1 - output.nuerons_(0, 2))*(-output.nuerons_(0, 2));
-					}
-					else
-					{
-						error_3 = 0.0f;
-					}
+					expected(0, p) = 0.0;
 				}
-				break;
-			case 2:
-				{
-					if (output.nuerons_(0, 0) > 0.2)
-					{
-						error_1 = output.nuerons_(0, 0)*(1 - output.nuerons_(0, 0))*(-output.nuerons_(0, 0));
-					}
-					else
-					{
-						error_1 = 0.0f;
-					}
-					if (output.nuerons_(0, 1) > 0.2)
-					{
-						error_2 = output.nuerons_(0, 1)*(1 - output.nuerons_(0, 1))*(-output.nuerons_(0, 1));
-					}
-					else
-					{
-						error_2 = 0.0f;
-					}
-					if (output.nuerons_(0, 2)< 0.8)
-					{
-						error_3 = output.nuerons_(0, 2)*(1 - output.nuerons_(0, 2))*(1-output.nuerons_(0, 2));
-					}
-					else
-					{
-						error_3 = 0.0f;
-					}
-				}
-				break;
 			}
 
-			
-			matrix errors(1, 3);
-			errors(0, 0) = error_1;
-			errors(0, 1) = error_2;
-			errors(0, 2) = error_3;
+			// with the expected vector complete
+			// if abs(expected - y) > 0.2 
+			// this means that the output neuron is 
+			// a) less than 0.8 if it was supposed to be 1
+			// b) greater than 0.2 if it was supposed to be 0
+			//
+			// then compute error = (expected - y) * sigmoid_deriv(y);
+			// else error = 0
+			matrix errors = expected - output.neurons_;
 
+			for (int p = 0; p < errors.NumCols(); p++)
+			{
+				if (abs(errors(0, p)) > 0.2)
+				{
+					errors(0, p) = errors(0, p) * sigmoid_deriv(output.neurons_(0, p));
+				}
+				else errors(0, p) = 0.0;
+			}
+			
 #ifdef VERBOSE
 			//if (p % 250 == 0)
 			{
@@ -796,8 +901,8 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 #endif
 			// weight deltas
 
-			output.ComputeWeightDeltas(hidden_2.nuerons_, alpha, beta);
-			hidden_2.ComputeWeightDeltas(hidden.nuerons_, alpha, beta);
+			output.ComputeWeightDeltas(hidden_2.neurons_, alpha, beta);
+			hidden_2.ComputeWeightDeltas(hidden.neurons_, alpha, beta);
 			hidden.ComputeWeightDeltas(input_matrix, alpha, beta);
 
 
@@ -852,22 +957,22 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 
 
 		hidden.FeedForward(input_matrix);
-		hidden_2.FeedForward(hidden.nuerons_);
-		output.FeedForward(hidden_2.nuerons_);
+		hidden_2.FeedForward(hidden.neurons_);
+		output.FeedForward(hidden_2.neurons_);
 		//int actual_type = (int)iris_data.iris_data[q][4];
 		int actual_type = (int)iris_data.iris_data[test_set[q]][4];
 
 		int found_type = 0;
 
-			if ((output.nuerons_(0, 0) > 0.8) && (output.nuerons_(0, 1) < 0.2) && (output.nuerons_(0, 2) < 0.2))
+			if ((output.neurons_(0, 0) > 0.8) && (output.neurons_(0, 1) < 0.2) && (output.neurons_(0, 2) < 0.2))
 			{
 				found_type = 0;
 			}
-			if ((output.nuerons_(0, 0) < 0.2) && (output.nuerons_(0, 1) > 0.8) && (output.nuerons_(0, 2) < 0.2))
+			if ((output.neurons_(0, 0) < 0.2) && (output.neurons_(0, 1) > 0.8) && (output.neurons_(0, 2) < 0.2))
 			{
 				found_type = 1;
 			}
-			if ((output.nuerons_(0, 0) < 0.2) && (output.nuerons_(0, 1) < 0.2) && (output.nuerons_(0, 2)> 0.8))
+			if ((output.neurons_(0, 0) < 0.2) && (output.neurons_(0, 1) < 0.2) && (output.neurons_(0, 2)> 0.8))
 			{
 				found_type = 2;
 			}
@@ -891,6 +996,7 @@ int main(int argc, char* argv[])
 
 	cout << "completed Shallow calculation" << endl;
 	cout << endl << endl;
+	
 
 	return 0;
 }
