@@ -198,6 +198,9 @@ namespace Vanilla_Layer
 		{
 			neurons_ = input_matrix * weights_ - thetas_;
 			sigmoid(neurons_, neurons_);
+#ifdef VERBOSE
+				PrintNeurons();	
+#endif
 		}
 
 		void BackPropogate(matrix &next_layer_weights_, matrix &next_layer_delta_weights_)
@@ -206,15 +209,14 @@ namespace Vanilla_Layer
 
 			next_layer_weights_.transpose();
 
-			//	next_layer_delta_weights_.transpose();
-
 			// OPERATOR PRECEDENCE! it is easy to forget what you are computing
 			deltas_ = deltas_ | (next_layer_delta_weights_ * next_layer_weights_);
 
-
-			//	next_layer_delta_weights_.transpose();
-
 			next_layer_weights_.transpose();
+
+#ifdef VERBOSE
+			PrintDeltas();
+#endif
 
 		}
 
@@ -226,6 +228,9 @@ namespace Vanilla_Layer
 
 			deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
 
+#ifdef VERBOSE
+				PrintDeltas();
+#endif
 		}
 
 		void ComputeWeightDeltas(matrix &input_matrix, float alpha, float beta)
@@ -241,6 +246,10 @@ namespace Vanilla_Layer
 			deltas_.transpose();
 
 			delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
+
+#ifdef VERBOSE
+			PrintDeltaWeights();
+#endif
 		}
 
 
@@ -249,6 +258,10 @@ namespace Vanilla_Layer
 			weights_ = weights_ + delta_weights_;// 
 
 			thetas_ = thetas_ + delta_thetas_;
+
+#ifdef VERBOSE
+			PrintWeights();
+#endif
 		}
 
 		void PrintNeurons()
@@ -469,13 +482,14 @@ matrix& QuadraticCostFunction(matrix& out, matrix& desired_outputs, matrix& outp
 
 
 
-using namespace Vanilla_Layer;
+
 // abs(expected - y)
 //  
 // y(1-y)^2  = (1-y) * sigmoid_deriv(y) =>  (expected - y) * ssigmoid_deriv(y)
 // -y^2(1-y) = -y * sigmoid_deriv(y) = > (expected - y ) * sigmoid_deriv(y)
 
-void Compute_IRIS_data_version_0_(int num_iterations)
+template< class Layer >
+void Compute_IRIS_data_version_0_(int num_iterations,  CSV &iris_data, vector<int> &training_set, vector<int> &test_set, vector<int> &indexes)
 {
 	Timer timer;
 
@@ -510,40 +524,7 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 	output.init_random_sample_weights_iris();
 
 
-	CSV iris_data;
-	iris_data.test();
-
-
-	// create a vector of integers to index the iris data array
-	vector<int> indexes;
-	for (int i = 0; i < iris_data.iris_data.size(); i++)
-		indexes.push_back(i);
-
-	// shuffle the indexes to randomize the order of the data
-	std::random_shuffle(indexes.begin(), indexes.end());
-
-	// compute the half size of the data set
-	int half_size = indexes.size() / 2;
-
-	// create a vector of indexes for training
-	vector<int> training_set;
-	// create a vector of indexes for testing
-	vector< int > test_set;
-
-	// store the first half of the indexes in the training set
-	// and the second half of the indexes in the test set
-	for (int i = 0; i < indexes.size(); i++)
-	{
-		if (i < 100)
-		{
-			training_set.push_back(indexes[i]);
-		}
-		else
-		{
-			test_set.push_back(indexes[i]);
-		}
-	}
-
+	
 
 	//	indexes
 	//vector< matrix > output_buffer;
@@ -573,33 +554,28 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 			input_matrix(0, 2) = iris_data.iris_data[training_set[q]][2];
 			input_matrix(0, 3) = iris_data.iris_data[training_set[q]][3];
 
-
-
-
-			hidden.FeedForward(input_matrix);
-			hidden_2.FeedForward(hidden.neurons_);
-
-			matrix expected(1,3);
+			matrix expected(1, 3);
 			for (int p = 0; p < 3; p++)
 			{
 				if ((int)iris_data.iris_data[training_set[q]][4] == p)
 				{
-					expected(0,p) = 1.0;
+					expected(0, p) = 1.0;
 				}
 				else
 				{
-					expected(0,p) = 0.0;
+					expected(0, p) = 0.0;
 				}
 			}
 
-			// with the expected vector complete
-			// if abs(expected - y) > 0.2 
-			// this means that the output neuron is 
-			// a) less than 0.8 if it was supposed to be 1
-			// b) greater than 0.2 if it was supposed to be 0
-			//
-			// then compute error = (expected - y) * sigmoid_deriv(y);
-			// else error = 0
+
+
+
+			// feed forward
+
+			hidden.FeedForward(input_matrix);
+			hidden_2.FeedForward(hidden.neurons_);
+
+			// compute the cost function for this training sample
 			matrix errors = expected - hidden_2.neurons_;
 
 			for (int p = 0; p < errors.NumCols(); p++)
@@ -612,69 +588,23 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 			}
 			
 
-			
-
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
-
-				hidden.PrintNeurons();
-				hidden_2.PrintNeurons();
-				cout << endl << "errors: " << endl;
-				errors.print();
-			}
-#endif
-
-			//sum_squared_errors += output_error*output_error;
-
-			//		output.BackPropogate_output( output_error);
-
+			// back propagate output
 
 			hidden_2.BackPropogate_output(errors);
-
 			hidden.BackPropogate(hidden_2.weights_, hidden_2.deltas_);
 
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
-				cout << "Deltas" << endl;
-
-
-				hidden.PrintDeltas();
-				hidden_2.PrintDeltas();
-			}
-#endif
 			// weight deltas
 
-			//output.ComputeWeightDeltas(hidden_2.neurons_, alpha, beta);
 			hidden_2.ComputeWeightDeltas(hidden.neurons_, alpha, beta);
 			hidden.ComputeWeightDeltas(input_matrix, alpha, beta);
 
 
+			// update weights
 
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
-				cout << "Weight Deltas" << endl;
-
-
-				hidden.PrintDeltaWeights();
-				hidden_2.PrintDeltaWeights();
-			}
-#endif
-
-			//output.UpdateWeights();
 			hidden_2.UpdateWeights();
 			hidden.UpdateWeights();
 
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
 
-				hidden.PrintWeights();
-				output.PrintWeights();
-			}
-#endif
 		}
 
 
@@ -722,7 +652,7 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 			found_type = 2;
 		}
 
-		cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
+	//	cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
 
 		if (found_type == actual_type) sum_squared_errors += 1.0f;
 	}
@@ -732,7 +662,8 @@ void Compute_IRIS_data_version_0_(int num_iterations)
 }
 
 //#define VERBOSE
-void Compute_IRIS_data_version_1_(int num_iterations)
+template< class Layer >
+void Compute_IRIS_data_version_1_(int num_iterations, CSV &iris_data ,vector<int> &training_set, vector<int> &test_set, vector<int> &indexes)
 {
 	Timer timer;
 
@@ -766,43 +697,6 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 	output.init_random_sample_weights_iris();
 
 
-	CSV iris_data;
-	iris_data.test();
-
-
-	// create a vector of integers to index the iris data array
-	vector<int> indexes;
-	for (int i = 0; i < iris_data.iris_data.size(); i++)
-		indexes.push_back(i);
-
-	// shuffle the indexes to randomize the order of the data
-	std::random_shuffle(indexes.begin(), indexes.end());
-
-	// compute the half size of the data set
-	int half_size = indexes.size() / 2;
-
-	// create a vector of indexes for training
-	vector<int> training_set;
-	// create a vector of indexes for testing
-	vector< int > test_set;
-
-	// store the first half of the indexes in the training set
-	// and the second half of the indexes in the test set
-	for (int i = 0; i < indexes.size(); i++)
-	{
-		if (i < 100)
-		{
-			training_set.push_back( indexes[i] );
-		}
-		else
-		{
-			test_set.push_back( indexes[i] );
-		}
-	}
-	
-
-//	indexes
-	//vector< matrix > output_buffer;
 
 	cout << endl;
 	cout << "Training, please wait ..." << endl;
@@ -829,12 +723,9 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 			input_matrix(0, 2) = iris_data.iris_data[ training_set[q] ][2];
 			input_matrix(0, 3) = iris_data.iris_data[ training_set[q] ][3];
 			
-
-
-
+			// feed forward
 			hidden.FeedForward(input_matrix);
 			hidden_2.FeedForward(hidden.neurons_);
-
 			output.FeedForward(hidden_2.neurons_);
 
 			matrix expected(1, 3);
@@ -850,14 +741,8 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 				}
 			}
 
-			// with the expected vector complete
-			// if abs(expected - y) > 0.2 
-			// this means that the output neuron is 
-			// a) less than 0.8 if it was supposed to be 1
-			// b) greater than 0.2 if it was supposed to be 0
-			//
-			// then compute error = (expected - y) * sigmoid_deriv(y);
-			// else error = 0
+			// compute the output error 
+
 			matrix errors = expected - output.neurons_;
 
 			for (int p = 0; p < errors.NumCols(); p++)
@@ -868,37 +753,14 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 				}
 				else errors(0, p) = 0.0;
 			}
+
+			// back propagate errors
 			
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
-
-				hidden.PrintNeurons();
-				hidden_2.PrintNeurons();
-				cout <<endl<< "errors: "<<endl;
-				errors.print();
-			}
-#endif
-	
-			//sum_squared_errors += output_error*output_error;
-
 			output.BackPropogate_output( errors);
-
-
 			hidden_2.BackPropogate(output.weights_, output.deltas_);
-
 			hidden.BackPropogate(hidden_2.weights_, hidden_2.deltas_);
 
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
-				cout << "Deltas" << endl;
 
-
-				hidden.PrintDeltas();
-				hidden_2.PrintDeltas();
-			}
-#endif
 			// weight deltas
 
 			output.ComputeWeightDeltas(hidden_2.neurons_, alpha, beta);
@@ -906,30 +768,12 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 			hidden.ComputeWeightDeltas(input_matrix, alpha, beta);
 
 
-
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
-				cout << "Weight Deltas" << endl;
-
-
-				hidden.PrintDeltaWeights();
-				hidden_2.PrintDeltaWeights();
-			}
-#endif
+			// update weights
 
 			output.UpdateWeights();
 			hidden_2.UpdateWeights();
 			hidden.UpdateWeights();
 
-#ifdef VERBOSE
-			//if (p % 250 == 0)
-			{
-
-				hidden.PrintWeights();
-				output.PrintWeights();
-			}
-#endif
 		}
 
 
@@ -942,24 +786,17 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 	sum_squared_errors = 0.0f; // used here to count the number of correct guesses
 
 	for (int q = 0; q < test_set.size(); q++)
-	{
-		/*input_matrix(0, 0) = iris_data.iris_data[q][0];
-		input_matrix(0, 1) = iris_data.iris_data[q][1];
-		input_matrix(0, 2) = iris_data.iris_data[q][2];
-		input_matrix(0, 3) = iris_data.iris_data[q][3];*/
-		
+	{		
 		input_matrix(0, 0) = iris_data.iris_data[test_set[q]][0];
 		input_matrix(0, 1) = iris_data.iris_data[test_set[q]][1];
 		input_matrix(0, 2) = iris_data.iris_data[test_set[q]][2];
 		input_matrix(0, 3) = iris_data.iris_data[test_set[q]][3];
 		//input_matrix(0, 2) = -1.0f; // bias is always -1
 
-
-
 		hidden.FeedForward(input_matrix);
 		hidden_2.FeedForward(hidden.neurons_);
 		output.FeedForward(hidden_2.neurons_);
-		//int actual_type = (int)iris_data.iris_data[q][4];
+
 		int actual_type = (int)iris_data.iris_data[test_set[q]][4];
 
 		int found_type = 0;
@@ -977,7 +814,7 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 				found_type = 2;
 			}
 
-			cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
+//			cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
 
 			if (found_type == actual_type) sum_squared_errors += 1.0f;
 	}
@@ -988,16 +825,62 @@ void Compute_IRIS_data_version_1_(int num_iterations)
 
 int main(int argc, char* argv[])
 {
-	Compute_IRIS_data_version_1_(1000);
+	CSV iris_data;
+	iris_data.test();
 
-	cout << "completed Deep calculation with 2 hidden layers " << endl;
 
-	Compute_IRIS_data_version_0_(1000);
+	// create a vector of integers to index the iris data array
+	vector<int> indexes;
+	for (int i = 0; i < iris_data.iris_data.size(); i++)
+		indexes.push_back(i);
 
-	cout << "completed Shallow calculation" << endl;
-	cout << endl << endl;
+	// shuffle the indexes to randomize the order of the data
+
+		std::random_shuffle(indexes.begin(), indexes.end());
 	
+		// compute the half size of the data set
+		int half_size = indexes.size() / 2;
 
+		// create a vector of indexes for training
+		vector<int> training_set;
+		// create a vector of indexes for testing
+		vector< int > test_set;
+
+		// store the first half of the indexes in the training set
+		// and the second half of the indexes in the test set
+		for (int i = 0; i < indexes.size(); i++)
+		{
+			if (i < 100)
+			{
+				training_set.push_back(indexes[i]);
+			}
+			else
+			{
+				test_set.push_back(indexes[i]);
+			}
+		}
+
+
+		Compute_IRIS_data_version_1_< Optimized_Layer::Layer >(1000, iris_data, training_set, test_set, indexes);
+
+		cout << "completed Deep calculation with 2 hidden layers (Optimized_Layer)" << endl;
+
+		Compute_IRIS_data_version_0_< Optimized_Layer::Layer >(1000, iris_data, training_set, test_set, indexes);
+
+		cout << "completed Shallow calculation (Optimized_Layer)" << endl;
+		cout << endl << endl;
+
+
+
+		Compute_IRIS_data_version_0_< Vanilla_Layer::Layer >(1000, iris_data, training_set, test_set, indexes);
+
+		cout << "completed Shallow calculation (Vanilla)" << endl;
+
+		Compute_IRIS_data_version_1_< Vanilla_Layer::Layer >(1000, iris_data, training_set, test_set, indexes);
+
+		cout << "completed Deep calculation with 2 hidden layers (Vanilla)" << endl;
+		cout << endl << endl;
+	
 	return 0;
 }
 
