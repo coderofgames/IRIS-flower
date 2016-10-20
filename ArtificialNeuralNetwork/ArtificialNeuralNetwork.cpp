@@ -398,7 +398,7 @@ namespace Vanilla_Layer
 			matrix& FeedForward(matrix &input_matrix)
 			{
 				neurons_ = input_matrix * connection_in->weights_ - thetas_;
-				//neurons_ = input_matrix * weights_ - thetas_;
+				
 				sigmoid(neurons_, neurons_);
 
 				if (connection_out && connection_out->next )
@@ -423,13 +423,6 @@ namespace Vanilla_Layer
 				if (connection_in && connection_in->prev)
 					connection_in->prev->BackPropogate();
 
-				//next_layer_weights_.transpose();
-
-				// OPERATOR PRECEDENCE! it is easy to forget what you are computing
-				//deltas_ = deltas_ | (next_layer_delta_weights_ * next_layer_weights_);
-
-				//next_layer_weights_.transpose();
-
 #ifdef VERBOSE
 				PrintDeltas();
 #endif
@@ -438,10 +431,6 @@ namespace Vanilla_Layer
 
 			void BackPropogate_output(matrix& output_error)
 			{
-				sigmoid_deriv(deltas_, neurons_);
-
-				//	deltas_ = (deltas_)| output_error;
-
 				deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
 
 				if (connection_in && connection_in->prev)
@@ -455,17 +444,7 @@ namespace Vanilla_Layer
 			{
 				if ( connection_in )
 					connection_in->Compute_Weight_Deltas(deltas_, alpha, beta);
-				//delta_weights_.transpose();
 
-				//deltas_.transpose();
-
-				//delta_weights_ = delta_weights_ * beta + deltas_* input_matrix * alpha;
-
-				//delta_weights_.transpose();
-
-				//deltas_.transpose();
-
-				//delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
 				delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
 
 
@@ -564,13 +543,13 @@ namespace Vanilla_Layer
 					input_layer[0]->connection_in = 0;
 					for (int i = 1; i < num_layers; i++ )
 					{
-													// num elements  num outputs
 						input_layer[i] = new Layer( layer_sizes[i], layer_sizes[i-1] ) ;
 
-						input_layer[i]->connection_in = new LayerConnection( input_layer[i - 1],  // prev
-																			 input_layer[i],      // next (this one)
-																			 layer_sizes[i - 1], // num_inputs (nodes in prev)
-																			 layer_sizes[i]);    // num_outputs (nodes in this)
+						input_layer[i]->connection_in = 
+							new LayerConnection( input_layer[i - 1],  // prev
+								input_layer[i],      // next (this one)
+								layer_sizes[i - 1], // num_inputs (nodes in prev)
+								layer_sizes[i]);    // num_outputs (nodes in this)
 
 						input_layer[i - 1]->connection_out = input_layer[i]->connection_in; // the last layers output connection is the input to this
 						
@@ -587,6 +566,19 @@ namespace Vanilla_Layer
 
 				}
 			}
+
+			~NeuralNetwork()
+			{
+				// initialize the weights
+				for (int i = 0; i < num_layers; i++)
+				{
+					if (input_layer[i]->connection_in)
+						delete input_layer[i]->connection_in;
+					delete input_layer[i];
+				}
+				delete [] input_layer;
+			}
+
 
 			matrix& FeedForward(matrix& input)
 			{
@@ -864,7 +856,7 @@ void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int
 	int negative_error_delta_count = 0;
 	int alternation_count = 0;
 
-
+//	matrix Cost_Matrix;
 
 	for (int p = 0; p < num_iterations; p++)
 	{
@@ -900,6 +892,8 @@ void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int
 			
 			matrix errors = expected - output;
 
+
+
 			for (int p = 0; p < errors.NumCols(); p++)
 			{
 				if (abs(errors(0, p)) > 0.2)
@@ -923,6 +917,8 @@ void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int
 			neuralNet->UpdateWeights();
 
 		}
+
+
 
 
 	}
