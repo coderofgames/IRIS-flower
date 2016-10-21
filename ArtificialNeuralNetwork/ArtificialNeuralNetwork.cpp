@@ -298,6 +298,292 @@ namespace Vanilla_Layer
 
 	}
 
+
+	namespace Linked_Layer_Connection_Matrix_In_Layer
+	{
+		class Layer;
+
+		class LayerConnection
+		{
+		public:
+			LayerConnection(Layer* Prev, Layer* Next)
+			{
+
+				prev = Prev;
+				next = Next;
+			}
+
+
+			Layer * prev;
+			Layer * next;
+
+
+		};
+
+
+
+		class Layer
+		{
+		public:
+			LayerConnection *connection_in;
+			LayerConnection *connection_out;
+
+			matrix neurons_;
+			matrix thetas_;
+			matrix weights_;
+
+			matrix delta_thetas_;
+			matrix delta_weights_;
+
+			matrix deltas_;
+
+			Layer(){}
+
+			Layer(unsigned int num_elements, unsigned int num_inputs)
+			{
+				neurons_.create(1, num_elements);
+				weights_.create(num_inputs, num_elements);
+				thetas_.create(1, num_elements);
+				delta_weights_.create(num_inputs, num_elements);
+				delta_thetas_.create(1, num_elements);
+			}
+
+			Layer(unsigned int num_elements, unsigned int num_inputs, LayerConnection *in, LayerConnection *out)
+			{
+				connection_in = in;
+				connection_out = out;
+
+				neurons_.create(1, num_elements);
+				weights_.create(num_inputs, num_elements);
+				thetas_.create(1, num_elements);
+				delta_weights_.create(num_inputs, num_elements);
+				delta_thetas_.create(1, num_elements);
+			}
+
+			void init_random_sample_weights_iris()
+			{
+				for (int i = 0; i < weights_.NumRows(); i++)
+				{
+					for (int j = 0; j < weights_.NumCols(); j++)
+					{
+						weights_(i, j) = RandomFloat(0, 1) / 5;
+					}
+				}
+
+				for (int i = 0; i < thetas_.NumRows(); i++)
+				{
+					for (int j = 0; j < thetas_.NumCols(); j++)
+					{
+						thetas_(i, j) = RandomFloat(0, 1) / 5;
+					}
+				}
+			}
+
+			matrix& FeedForward(matrix &input_matrix)
+			{
+				neurons_ = input_matrix * weights_ - thetas_;
+
+				sigmoid(neurons_, neurons_);
+
+				if (connection_out && connection_out->next)
+					return connection_out->next->FeedForward(neurons_);
+
+				return neurons_;
+#ifdef VERBOSE
+				PrintNeurons();
+#endif
+			}
+
+			void BackPropogate()
+			{
+				sigmoid_deriv(deltas_, neurons_);
+
+				//if ( connection_out )
+			
+				connection_out->next->weights_.transpose();
+				deltas_ = deltas_ | (connection_out->next->deltas_ * connection_out->next->weights_);
+				connection_out->next->weights_.transpose();
+
+				if (connection_in && connection_in->prev)
+					connection_in->prev->BackPropogate();
+
+#ifdef VERBOSE
+				PrintDeltas();
+#endif
+
+			}
+
+			void BackPropogate_output(matrix& output_error)
+			{
+				deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
+
+				if (connection_in && connection_in->prev)
+					connection_in->prev->BackPropogate();
+#ifdef VERBOSE
+				PrintDeltas();
+#endif
+			}
+
+			void ComputeWeightDeltas(float alpha, float beta)
+			{
+				if (connection_in && connection_in->prev)
+				{
+					delta_weights_.transpose();
+
+					deltas_.transpose();
+
+					delta_weights_ = delta_weights_ * beta + deltas_* connection_in->prev->neurons_ * alpha;
+
+					delta_weights_.transpose();
+
+					deltas_.transpose();
+
+					delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
+					
+					connection_in->prev->ComputeWeightDeltas(alpha, beta);
+				}
+				
+				
+
+#ifdef VERBOSE
+				PrintDeltaWeights();
+#endif
+			}
+
+
+			void UpdateWeights()
+			{
+				if (connection_in && connection_in->prev)
+				{
+					weights_ = weights_ + delta_weights_;// 
+
+					thetas_ = thetas_ + delta_thetas_;
+
+					connection_in->prev->UpdateWeights();
+				}
+#ifdef VERBOSE
+				PrintWeights();
+#endif
+			}
+
+			void PrintNeurons()
+			{
+				cout << "Neurons" << endl;
+				neurons_.print(3);
+				cout << endl;
+			}
+
+			void PrintDeltas()
+			{
+				cout << "Deltas" << endl;
+				deltas_.print(3);
+			}
+			void PrintDeltaWeights()
+			{
+				cout << "Delta Weights" << endl;
+				delta_weights_.print(3);
+			}
+			void PrintDeltaThetas()
+			{
+				cout << "Delta Thetas" << endl;
+				delta_thetas_.print(3);
+			}
+
+			void PrintWeights()
+			{
+				cout << "Weights" << endl;
+				weights_.print(3);
+			}
+		};
+
+
+
+
+		class NeuralNetwork
+		{
+		public:
+			NeuralNetwork(){
+				input_layer = 0;
+			}
+
+			NeuralNetwork(vector<int> &layer_sizes){
+
+
+				num_layers = layer_sizes.size();
+				if (num_layers > 0)
+				{
+					input_layer = new Layer*[num_layers];
+
+					input_layer[0] = new Layer(layer_sizes[0], 1);
+					input_layer[0]->connection_in = 0;
+					for (int i = 1; i < num_layers; i++)
+					{
+						input_layer[i] = new Layer(layer_sizes[i], layer_sizes[i - 1]);
+
+						input_layer[i]->connection_in =
+							new LayerConnection(input_layer[i - 1],  // prev
+							input_layer[i]);     // next (this one)
+							//layer_sizes[i - 1], // num_inputs (nodes in prev)
+							//layer_sizes[i]);    // num_outputs (nodes in this)
+
+						input_layer[i - 1]->connection_out = input_layer[i]->connection_in; // the last layers output connection is the input to this
+
+					}
+
+					input_layer[num_layers - 1]->connection_out = 0; // or something ...
+
+					// initialize the weights
+					for (int i = 0; i < num_layers; i++)
+					{
+						if (input_layer[i]->connection_in)
+							input_layer[i]->init_random_sample_weights_iris();
+					}
+
+				}
+			}
+
+			~NeuralNetwork()
+			{
+				// initialize the weights
+				for (int i = 0; i < num_layers; i++)
+				{
+					if (input_layer[i]->connection_in)
+						delete input_layer[i]->connection_in;
+					delete input_layer[i];
+				}
+				delete[] input_layer;
+			}
+
+
+			matrix& FeedForward(matrix& input)
+			{
+				input_layer[0]->neurons_ = input;
+				return input_layer[1]->FeedForward(input);
+			}
+
+			void BackPropagateErrors(matrix& errors)
+			{
+				input_layer[num_layers - 1]->BackPropogate_output(errors);
+			}
+
+			void ComputeDeltas(float alpha, float beta)
+			{
+				input_layer[num_layers - 1]->ComputeWeightDeltas(alpha, beta);
+			}
+
+			void UpdateWeights()
+			{
+				input_layer[num_layers - 1]->UpdateWeights();
+			}
+
+			int num_layers = 0;
+			Layer **input_layer;
+
+		};
+	}
+
+
+
 	namespace Linked_Layer
 	{
 		class Layer;
@@ -609,9 +895,649 @@ namespace Vanilla_Layer
 	
 
 	
+	namespace Linked_Layer_Loop_Eval
+	{
+		class Layer;
+
+		class LayerConnection
+		{
+		public:
+			LayerConnection(Layer* Prev, Layer* Next, int num_inputs, int num_outputs)
+			{
+				weights_.create(num_inputs, num_outputs);
+				delta_weights_.create(num_inputs, num_outputs);
+
+				prev = Prev;
+				next = Next;
+			}
+
+			void init_random_sample_weights_iris()
+			{
+				for (int i = 0; i < weights_.NumRows(); i++)
+				{
+					for (int j = 0; j < weights_.NumCols(); j++)
+					{
+						weights_(i, j) = RandomFloat(0, 1) / 5;
+					}
+				}
+			}
+
+			void Compute_Weight_Deltas(matrix &deltas_, float alpha, float beta);
+
+			void UpdateWeights();
+
+			Layer * prev;
+			Layer * next;
+
+			matrix weights_;
+			matrix delta_weights_;
+		};
+
+
+
+		class Layer
+		{
+		public:
+			LayerConnection *connection_in;
+			LayerConnection *connection_out;
+
+			matrix neurons_;
+			matrix thetas_;
+			matrix weights_;
+
+			matrix delta_thetas_;
+			matrix delta_weights_;
+
+			matrix deltas_;
+
+			Layer(){}
+
+			Layer(unsigned int num_elements, unsigned int num_inputs)
+			{
+				neurons_.create(1, num_elements);
+				weights_.create(num_inputs, num_elements);
+				thetas_.create(1, num_elements);
+				delta_weights_.create(num_inputs, num_elements);
+				delta_thetas_.create(1, num_elements);
+			}
+
+			Layer(unsigned int num_elements, unsigned int num_inputs, LayerConnection *in, LayerConnection *out)
+			{
+				connection_in = in;
+				connection_out = out;
+
+				neurons_.create(1, num_elements);
+				weights_.create(num_inputs, num_elements);
+				thetas_.create(1, num_elements);
+				delta_weights_.create(num_inputs, num_elements);
+				delta_thetas_.create(1, num_elements);
+			}
+
+			void init_random_sample_weights_iris()
+			{
+				for (int i = 0; i < weights_.NumRows(); i++)
+				{
+					for (int j = 0; j < weights_.NumCols(); j++)
+					{
+						weights_(i, j) = RandomFloat(0, 1) / 5;
+					}
+				}
+
+				for (int i = 0; i < thetas_.NumRows(); i++)
+				{
+					for (int j = 0; j < thetas_.NumCols(); j++)
+					{
+						thetas_(i, j) = RandomFloat(0, 1) / 5;
+					}
+				}
+			}
+
+			void FeedForward(matrix &input_matrix)
+			{
+				neurons_ = input_matrix * connection_in->weights_ - thetas_;
+
+				sigmoid(neurons_, neurons_);
+
+				//if (connection_out && connection_out->next)
+				//	return connection_out->next->FeedForward(neurons_);
+
+				//return neurons_;
+#ifdef VERBOSE
+				PrintNeurons();
+#endif
+			}
+
+			void BackPropogate()
+			{
+				sigmoid_deriv(deltas_, neurons_);
+
+				//if ( connection_out )
+
+				connection_out->weights_.transpose();
+				deltas_ = deltas_ | (connection_out->next->deltas_ * connection_out->weights_);
+				connection_out->weights_.transpose();
+
+				//if (connection_in && connection_in->prev)
+				//	connection_in->prev->BackPropogate();
+
+#ifdef VERBOSE
+				PrintDeltas();
+#endif
+
+			}
+
+			void BackPropogate_output(matrix& output_error)
+			{
+				deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
+
+				//if (connection_in && connection_in->prev)
+				//	connection_in->prev->BackPropogate();
+#ifdef VERBOSE
+				PrintDeltas();
+#endif
+			}
+
+			void ComputeWeightDeltas(float alpha, float beta)
+			{
+				if (connection_in)
+					connection_in->Compute_Weight_Deltas(deltas_, alpha, beta);
+
+				delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
+
+
+#ifdef VERBOSE
+				PrintDeltaWeights();
+#endif
+			}
+
+
+			void UpdateWeights()
+			{
+				if (connection_in)
+					connection_in->UpdateWeights();
+
+				thetas_ = thetas_ + delta_thetas_;
+
+#ifdef VERBOSE
+				PrintWeights();
+#endif
+			}
+
+			void PrintNeurons()
+			{
+				cout << "Neurons" << endl;
+				neurons_.print(3);
+				cout << endl;
+			}
+
+			void PrintDeltas()
+			{
+				cout << "Deltas" << endl;
+				deltas_.print(3);
+			}
+			void PrintDeltaWeights()
+			{
+				cout << "Delta Weights" << endl;
+				delta_weights_.print(3);
+			}
+			void PrintDeltaThetas()
+			{
+				cout << "Delta Thetas" << endl;
+				delta_thetas_.print(3);
+			}
+
+			void PrintWeights()
+			{
+				cout << "Weights" << endl;
+				weights_.print(3);
+			}
+		};
+
+
+		void LayerConnection::Compute_Weight_Deltas(matrix &deltas_, float alpha, float beta)
+		{
+			delta_weights_.transpose();
+
+			deltas_.transpose();
+
+			delta_weights_ = delta_weights_ * beta + deltas_* this->prev->neurons_ * alpha;
+
+			delta_weights_.transpose();
+
+			deltas_.transpose();
+
+
+		//	if (prev)
+		//		prev->ComputeWeightDeltas(alpha, beta);
+
+
+		}
+
+		void LayerConnection::UpdateWeights()
+		{
+			weights_ = weights_ + delta_weights_;// 
+
+		//	if (prev)
+		//		prev->UpdateWeights();
+		}
+
+		class NeuralNetwork
+		{
+		public:
+			NeuralNetwork(){
+				input_layer = 0;
+			}
+
+			NeuralNetwork(vector<int> &layer_sizes){
+
+
+				num_layers = layer_sizes.size();
+				if (num_layers > 0)
+				{
+					input_layer = new Layer*[num_layers];
+
+					input_layer[0] = new Layer(layer_sizes[0], 1);
+					input_layer[0]->connection_in = 0;
+					for (int i = 1; i < num_layers; i++)
+					{
+						input_layer[i] = new Layer(layer_sizes[i], layer_sizes[i - 1]);
+
+						input_layer[i]->connection_in =
+							new LayerConnection(input_layer[i - 1],  // prev
+							input_layer[i],      // next (this one)
+							layer_sizes[i - 1], // num_inputs (nodes in prev)
+							layer_sizes[i]);    // num_outputs (nodes in this)
+
+						input_layer[i - 1]->connection_out = input_layer[i]->connection_in; // the last layers output connection is the input to this
+
+					}
+
+					input_layer[num_layers - 1]->connection_out = 0; // or something ...
+
+					// initialize the weights
+					for (int i = 0; i < num_layers; i++)
+					{
+						if (input_layer[i]->connection_in)
+							input_layer[i]->connection_in->init_random_sample_weights_iris();
+					}
+
+				}
+			}
+
+			~NeuralNetwork()
+			{
+				// initialize the weights
+				for (int i = 0; i < num_layers; i++)
+				{
+					if (input_layer[i]->connection_in)
+						delete input_layer[i]->connection_in;
+					delete input_layer[i];
+				}
+				delete[] input_layer;
+			}
+
+
+			matrix& FeedForward(matrix& input)
+			{
+				input_layer[0]->neurons_ = input;
+
+				for (int i = 1; i < num_layers; i++)
+				{
+					input_layer[i]->FeedForward(input_layer[i - 1]->neurons_);
+				}
+
+				return input_layer[num_layers - 1]->neurons_;
+				 
+			}
+
+			void BackPropagateErrors(matrix& errors)
+			{
+				input_layer[num_layers - 1]->BackPropogate_output(errors);
+				
+				for (int i = num_layers - 2; i > -1; i--)
+				{
+					input_layer[i]->BackPropogate();
+				}
+				
+			}
+
+			void ComputeDeltas(float alpha, float beta)
+			{
+				input_layer[num_layers - 1]->ComputeWeightDeltas(alpha, beta);
+
+				for (int i = num_layers - 2; i > -1; i--)
+				{
+					input_layer[i]->ComputeWeightDeltas(alpha, beta);
+				}
+			}
+
+			void UpdateWeights()
+			{
+				input_layer[num_layers - 1]->UpdateWeights();
+
+				for (int i = num_layers - 2; i > -1; i--)
+				{
+					input_layer[i]->UpdateWeights();
+				}
+			}
+
+			
+
+			int num_layers = 0;
+			Layer **input_layer;
+
+		};
+	}
 	
 
-	
+
+	namespace Linked_Layer_Loop_Eval_Connection_Matrix_In_Layer
+	{
+		class Layer;
+
+		class LayerConnection
+		{
+		public:
+			LayerConnection(Layer* Prev, Layer* Next)
+			{
+
+				prev = Prev;
+				next = Next;
+			}
+
+
+			Layer * prev;
+			Layer * next;
+
+
+		};
+
+
+
+		class Layer
+		{
+		public:
+			LayerConnection *connection_in;
+			LayerConnection *connection_out;
+
+			matrix neurons_;
+			matrix thetas_;
+			matrix weights_;
+
+			matrix delta_thetas_;
+			matrix delta_weights_;
+
+			matrix deltas_;
+
+			Layer(){}
+
+			Layer(unsigned int num_elements, unsigned int num_inputs)
+			{
+				neurons_.create(1, num_elements);
+				weights_.create(num_inputs, num_elements);
+				thetas_.create(1, num_elements);
+				delta_weights_.create(num_inputs, num_elements);
+				delta_thetas_.create(1, num_elements);
+			}
+
+			Layer(unsigned int num_elements, unsigned int num_inputs, LayerConnection *in, LayerConnection *out)
+			{
+				connection_in = in;
+				connection_out = out;
+
+				neurons_.create(1, num_elements);
+				weights_.create(num_inputs, num_elements);
+				thetas_.create(1, num_elements);
+				delta_weights_.create(num_inputs, num_elements);
+				delta_thetas_.create(1, num_elements);
+			}
+
+			void init_random_sample_weights_iris()
+			{
+				for (int i = 0; i < weights_.NumRows(); i++)
+				{
+					for (int j = 0; j < weights_.NumCols(); j++)
+					{
+						weights_(i, j) = RandomFloat(0, 1) / 5;
+					}
+				}
+
+				for (int i = 0; i < thetas_.NumRows(); i++)
+				{
+					for (int j = 0; j < thetas_.NumCols(); j++)
+					{
+						thetas_(i, j) = RandomFloat(0, 1) / 5;
+					}
+				}
+			}
+
+			void FeedForward(matrix &input_matrix)
+			{
+				neurons_ = input_matrix * weights_ - thetas_;
+
+				sigmoid(neurons_, neurons_);
+
+				//if (connection_out && connection_out->next)
+				//	return connection_out->next->FeedForward(neurons_);
+
+				//return neurons_;
+#ifdef VERBOSE
+				PrintNeurons();
+#endif
+			}
+
+			void BackPropogate()
+			{
+				sigmoid_deriv(deltas_, neurons_);
+
+				//if ( connection_out )
+
+				connection_out->next->weights_.transpose();
+				deltas_ = deltas_ | (connection_out->next->deltas_ * connection_out->next->weights_);
+				connection_out->next->weights_.transpose();
+
+			//	if (connection_in && connection_in->prev)
+			//		connection_in->prev->BackPropogate();
+
+#ifdef VERBOSE
+				PrintDeltas();
+#endif
+
+			}
+
+			void BackPropogate_output(matrix& output_error)
+			{
+				deltas_ = output_error; // THIS WORKS FOR THE IRIS CASE
+
+			//	if (connection_in && connection_in->prev)
+			//		connection_in->prev->BackPropogate();
+#ifdef VERBOSE
+				PrintDeltas();
+#endif
+			}
+
+			void ComputeWeightDeltas(float alpha, float beta)
+			{
+				if (connection_in && connection_in->prev)
+				{
+					delta_weights_.transpose();
+
+					deltas_.transpose();
+
+					delta_weights_ = delta_weights_ * beta + deltas_* connection_in->prev->neurons_ * alpha;
+
+					delta_weights_.transpose();
+
+					deltas_.transpose();
+
+					delta_thetas_ = delta_thetas_ * beta + deltas_* (-1.0f) * alpha;
+
+				//	connection_in->prev->ComputeWeightDeltas(alpha, beta);
+				}
+
+
+
+#ifdef VERBOSE
+				PrintDeltaWeights();
+#endif
+			}
+
+
+			void UpdateWeights()
+			{
+				if (connection_in && connection_in->prev)
+				{
+					weights_ = weights_ + delta_weights_;// 
+
+					thetas_ = thetas_ + delta_thetas_;
+
+				//	connection_in->prev->UpdateWeights();
+				}
+#ifdef VERBOSE
+				PrintWeights();
+#endif
+			}
+
+			void PrintNeurons()
+			{
+				cout << "Neurons" << endl;
+				neurons_.print(3);
+				cout << endl;
+			}
+
+			void PrintDeltas()
+			{
+				cout << "Deltas" << endl;
+				deltas_.print(3);
+			}
+			void PrintDeltaWeights()
+			{
+				cout << "Delta Weights" << endl;
+				delta_weights_.print(3);
+			}
+			void PrintDeltaThetas()
+			{
+				cout << "Delta Thetas" << endl;
+				delta_thetas_.print(3);
+			}
+
+			void PrintWeights()
+			{
+				cout << "Weights" << endl;
+				weights_.print(3);
+			}
+		};
+
+
+
+
+		class NeuralNetwork
+		{
+		public:
+			NeuralNetwork(){
+				input_layer = 0;
+			}
+
+			NeuralNetwork(vector<int> &layer_sizes){
+
+
+				num_layers = layer_sizes.size();
+				if (num_layers > 0)
+				{
+					input_layer = new Layer*[num_layers];
+
+					input_layer[0] = new Layer(layer_sizes[0], 1);
+					input_layer[0]->connection_in = 0;
+					for (int i = 1; i < num_layers; i++)
+					{
+						input_layer[i] = new Layer(layer_sizes[i], layer_sizes[i - 1]);
+
+						input_layer[i]->connection_in =
+							new LayerConnection(input_layer[i - 1],  // prev
+							input_layer[i]);      // next (this one)
+							//layer_sizes[i - 1], // num_inputs (nodes in prev)
+							//layer_sizes[i]);    // num_outputs (nodes in this)
+
+						input_layer[i - 1]->connection_out = input_layer[i]->connection_in; // the last layers output connection is the input to this
+
+					}
+
+					input_layer[num_layers - 1]->connection_out = 0; // or something ...
+
+					// initialize the weights
+					for (int i = 0; i < num_layers; i++)
+					{
+						if (input_layer[i]->connection_in)
+							input_layer[i]->init_random_sample_weights_iris();
+					}
+
+				}
+			}
+
+			~NeuralNetwork()
+			{
+				// initialize the weights
+				for (int i = 0; i < num_layers; i++)
+				{
+					if (input_layer[i]->connection_in)
+						delete input_layer[i]->connection_in;
+					delete input_layer[i];
+				}
+				delete[] input_layer;
+			}
+
+
+			matrix& FeedForward(matrix& input)
+			{
+				input_layer[0]->neurons_ = input;
+
+				for (int i = 1; i < num_layers; i++)
+				{
+					input_layer[i]->FeedForward(input_layer[i - 1]->neurons_);
+				}
+
+				return input_layer[num_layers - 1]->neurons_;
+
+			}
+
+			void BackPropagateErrors(matrix& errors)
+			{
+				input_layer[num_layers - 1]->BackPropogate_output(errors);
+
+				for (int i = num_layers - 2; i > -1; i--)
+				{
+					input_layer[i]->BackPropogate();
+				}
+
+			}
+
+			void ComputeDeltas(float alpha, float beta)
+			{
+				input_layer[num_layers - 1]->ComputeWeightDeltas(alpha, beta);
+
+				for (int i = num_layers - 2; i > -1; i--)
+				{
+					input_layer[i]->ComputeWeightDeltas(alpha, beta);
+				}
+			}
+
+			void UpdateWeights()
+			{
+				input_layer[num_layers - 1]->UpdateWeights();
+
+				for (int i = num_layers - 2; i > -1; i--)
+				{
+					input_layer[i]->UpdateWeights();
+				}
+			}
+
+
+
+			int num_layers = 0;
+			Layer **input_layer;
+
+		};
+	}
 }
 
 
@@ -800,8 +1726,8 @@ matrix& QuadraticCostFunction(matrix& out, matrix& desired_outputs, matrix& outp
 
 
 
-
-void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int> &training_set, vector<int> &test_set, vector<int> &indexes)
+template< class NeuralNetwork >
+void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int> &training_set, vector<int> &test_set, vector<int> &indexes, double &time_)
 {
 	Timer timer;
 
@@ -832,7 +1758,7 @@ void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int
 	layer_sizes.push_back(num_hidden);
 	layer_sizes.push_back(num_hidden_2);
 
-	Vanilla_Layer::Linked_Layer::NeuralNetwork *neuralNet = new Vanilla_Layer::Linked_Layer::NeuralNetwork(layer_sizes);
+	NeuralNetwork *neuralNet = new NeuralNetwork(layer_sizes);
 
 
 
@@ -924,8 +1850,10 @@ void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int
 	}
 	timer.Update();
 	timer.Stop();
-	cout << "Finished training, Total calculation performed in " << timer.GetTimeDelta() << " seconds" << endl;
+	double time_taken = timer.GetTimeDelta();
+		cout << "Finished training, Total calculation performed in " << time_taken << " seconds" << endl;
 
+	time_ += time_taken;
 
 	sum_squared_errors = 0.0f; // used here to count the number of correct guesses
 
@@ -962,7 +1890,7 @@ void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int
 			found_type = 2;
 		}
 
-			cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
+		//	cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
 
 		if (found_type == actual_type) sum_squared_errors += 1.0f;
 	}
@@ -972,10 +1900,7 @@ void Compute_IRIS_data_version_2_(int num_iterations, CSV &iris_data, vector<int
 }
 
 
-// abs(expected - y)
-//  
-// y(1-y)^2  = (1-y) * sigmoid_deriv(y) =>  (expected - y) * ssigmoid_deriv(y)
-// -y^2(1-y) = -y * sigmoid_deriv(y) = > (expected - y ) * sigmoid_deriv(y)
+
 
 template< class Layer >
 void Compute_IRIS_data_version_0_(int num_iterations,  CSV &iris_data, vector<int> &training_set, vector<int> &test_set, vector<int> &indexes)
@@ -1324,7 +2249,7 @@ int main(int argc, char* argv[])
 		indexes.push_back(i);
 
 	// shuffle the indexes to randomize the order of the data
-
+	
 	std::random_shuffle(indexes.begin(), indexes.end());
 	
 	// compute the half size of the data set
@@ -1364,22 +2289,62 @@ int main(int argc, char* argv[])
 	cout << "completed Deep calculation with 2 hidden layers (Vanilla)" << endl;
 	cout << endl << endl;
 */
-	Compute_IRIS_data_version_0_< Vanilla_Layer::Non_Lnked_Layer::Layer >(1000, iris_data, training_set, test_set, indexes);
+	//Compute_IRIS_data_version_0_< Vanilla_Layer::Non_Lnked_Layer::Layer >(1000, iris_data, training_set, test_set, indexes);
 
-	cout << "completed Shallow calculation (Vanilla)" << endl;
-
-	
-
-
+//	cout << "completed Shallow calculation (Vanilla)" << endl;
 
 	
+	double total_time = 0;
+	//for (int i = 0; i < 10; i++)
+	{
+		cout << "===========================================================================================" << endl;
+		cout << "Testing Linked_Layer_Loop_Eval_Connection_Matrix_In_Layer neural net object" << endl;
+
+		Compute_IRIS_data_version_2_<Vanilla_Layer::Linked_Layer_Loop_Eval_Connection_Matrix_In_Layer::NeuralNetwork>
+			(250, iris_data, training_set,
+			test_set, indexes, total_time);
+
+		cout << endl << endl;
+		cout << "Finished testing Linked_Layer_Loop_Eval_Connection_Matrix_In_Layer net object" << endl;
+	}
+
+
+	total_time = 0;
+	cout << "===========================================================================================" << endl;
+		cout << "Testing Linked_Layer_Connection_Matrix_In_Layer neural net object" << endl;
+
+		Compute_IRIS_data_version_2_<Vanilla_Layer::Linked_Layer_Connection_Matrix_In_Layer::NeuralNetwork>
+			(250, iris_data, training_set, test_set, 
+			indexes, total_time);
+
+		cout << endl << endl;
+		cout << "Finished testing Linked_Layer_Connection_Matrix_In_Layer net object" << endl;
+	
+
+	total_time = 0;
+	cout << "===========================================================================================" << endl;
+		cout << "Testing Linked_Layer_Loop_Eval neural net object" << endl;
+
+		Compute_IRIS_data_version_2_<Vanilla_Layer::Linked_Layer_Loop_Eval::NeuralNetwork>
+			(250, iris_data, training_set, test_set,
+			indexes,total_time);
+
+		cout << endl << endl;
+		cout << "Finished testing linked layer with iterative evaluation neural net object" << endl;
+	
+
+	total_time = 0;
+	cout << "===========================================================================================" << endl;
 	cout << "Testing linked layer neural net object" << endl;
+		Compute_IRIS_data_version_2_<Vanilla_Layer::Linked_Layer::NeuralNetwork>
+			(250, iris_data, training_set, test_set, 
+			indexes, total_time);
 
-	Compute_IRIS_data_version_2_(500, iris_data, training_set, test_set, indexes);
-	cout << endl << endl;
-	cout << "Finished testing linked layer neural net object" << endl;
-	cout << endl << endl;
+		cout << endl << endl;
+		cout << "Finished testing linked layer neural net object" << endl;
+		cout << endl << endl;
 	
+
 	return 0;
 }
 
