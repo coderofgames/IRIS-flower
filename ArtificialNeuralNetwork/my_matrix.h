@@ -1102,6 +1102,15 @@ private:
 					}
 				}
 			}
+			else if (this->NumCols() == 1 || this->NumRows() == 1) 
+			{
+				// special case of transposition of a vector
+				// this is faster because the matrix in memory is the same 
+				// after reallocation, only the indexes need change.
+				int temp = SX;
+				SX = SY;
+				SY = temp;
+			}
 			else
 			{
 				matrix<T> Y(this->NumCols(), this->NumRows());
