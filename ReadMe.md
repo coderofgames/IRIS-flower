@@ -2,11 +2,6 @@
     CONSOLE APPLICATION : ArtificialNeuralNetwork Project Overview
 ========================================================================
 
-Update: I have also added the spiral dataset from here
-http://cs231n.github.io/neural-networks-case-study/#scores
-to show how a neural network will also classify these harder problems
-
-
 NOTE: after recent Matrix optimizations and improvements, the classifier is finishing in 72%
 of the time in the shallow test, and 77% of the time in the deep test (in debug mode - better still, 
 build in release mode)
