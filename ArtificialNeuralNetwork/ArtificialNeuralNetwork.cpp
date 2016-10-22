@@ -506,15 +506,15 @@ void Compute_IRIS_data_version_1_(int num_iterations, CSV &iris_data ,vector<int
 
 }
 
-template< class NeuralNetwork >
+
 void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &data, vector<int> &training_set, vector<int> &test_set, vector<int> &indexes, double &time_)
 {
 	Timer timer;
 
 	int input_data_size = 1;
 	int num_inputs = 2;
-	int num_hidden = 20;
-	int num_hidden2 = 15;
+	int num_hidden = 9;
+	int num_hidden2 = 3;
 	int num_hidden3 = 8;
 	int num_outputs = 3;
 
@@ -522,18 +522,24 @@ void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &dat
 	matrix input_matrix(1, num_inputs);
 
 	float alpha = 0.5f;
-	float beta = 0.05f; // this does not appear to be working on either of these problems
+	float beta = 0.2;// 5f; // this does not appear to be working on either of these problems
 
 	float sum_squared_errors = 0.0f;
 
 	vector<int> layer_sizes;
 	layer_sizes.push_back(num_inputs);
 	layer_sizes.push_back(num_hidden);
-	layer_sizes.push_back(num_hidden2);
+	//layer_sizes.push_back(num_hidden2);
 	//layer_sizes.push_back(num_hidden3);
 	layer_sizes.push_back(num_outputs);
 
-	NeuralNetwork *neuralNet = new NeuralNetwork(layer_sizes);
+	Vanilla_Layer::Linked_Layer::NeuralNetwork *neuralNet = 
+		new Vanilla_Layer::Linked_Layer::NeuralNetwork(layer_sizes);
+
+	//neuralNet->input_layer[3]->alpha = 0.1;
+	neuralNet->input_layer[2]->alpha = 0.3;
+	neuralNet->input_layer[1]->alpha = 0.5;
+	neuralNet->input_layer[0]->alpha = 0.7;
 
 	cout << endl;
 	cout << "Training, please wait ..." << endl;
@@ -543,7 +549,11 @@ void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &dat
 	float tolerance = 0.15; // the new hyperparameter
 
 	matrix Cost_Matrix(1, 3);
-
+	matrix expected(1, 3);
+	matrix output(1,3);
+	
+	matrix errors2(1, 3);
+	matrix errors(1, 3);
 	for (int mm = 0; mm < num_iterations; mm++)
 	{
 
@@ -554,7 +564,7 @@ void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &dat
 			input_matrix(0, 1) = data[ training_set[q] ][1];
 
 			// formulate the correct output vector
-			matrix expected(1, 3);
+			
 			for (int p = 0; p < 3; p++)
 			{
 				if ((int)data[training_set[q]][2] == p)
@@ -569,11 +579,11 @@ void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &dat
 
 			// feed forward
 
-			matrix output = neuralNet->FeedForward(input_matrix);
+			output = neuralNet->FeedForward(input_matrix);
 
-			matrix errors = expected - output;
+			errors = expected - output;
 			
-			matrix errors2 = errors;
+			errors2 = errors;
 
 			Cost_Matrix = Cost_Matrix + pow(errors2, 2);
 
@@ -618,6 +628,9 @@ void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &dat
 
 	sum_squared_errors = 0.0f; // used here to count the number of correct guesses
 
+	tolerance += 0.2;
+
+	matrix test_output(1, 3);
 	for (int q = 0; q < test_set.size(); q++)
 	{
 		input_matrix(0, 0) = data[test_set[q]][0];
@@ -625,7 +638,7 @@ void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &dat
 
 		// test the neural network
 
-		matrix test_output = neuralNet->FeedForward(input_matrix);
+		test_output = neuralNet->FeedForward(input_matrix);
 
 		if (test_output.NumCols() != 3) cout << "should have more columns" << endl;
 
@@ -654,7 +667,436 @@ void Compute_IRIS_data_version_3_(int num_iterations, vector<vector<float>> &dat
 	cout << "Finished Test, Total classified correctly of " << test_set.size() << " tested: " << (int)sum_squared_errors << endl;
 
 }
+void Compute_IRIS_data_version_5_(int num_iterations, vector<vector<float>> &data, vector<int> &training_set, vector<int> &test_set, vector<int> &indexes, double &time_)
+{
+	Timer timer;
 
+
+
+	int input_data_size = 1;
+	int num_inputs = 2;
+	int num_hidden = 20;
+	int num_hidden2 = 18;
+	int num_hidden3 = 8;
+	int num_outputs = 3;
+
+	// ==========================================
+	matrix input_matrix(1, num_inputs);
+
+
+	float output_error = 0.0f;
+
+
+
+	float alpha = 0.5f;
+	float beta = 0.05f;
+
+	float reg = 0.001;
+
+	float sum_squared_errors = 0.0f;
+
+	vector<int> layer_sizes;
+	layer_sizes.push_back(num_inputs);
+	layer_sizes.push_back(num_hidden);
+	//layer_sizes.push_back(num_hidden2);
+	//layer_sizes.push_back(num_hidden3);
+	layer_sizes.push_back(num_outputs);
+
+	Improved_Layer::Linked_Layer_Loop_Eval::NeuralNetwork *neuralNet =
+		new Improved_Layer::Linked_Layer_Loop_Eval::NeuralNetwork(layer_sizes);
+
+
+
+
+
+
+
+
+	//	indexes
+	//vector< matrix > output_buffer;
+
+	cout << endl;
+	cout << "Training, please wait ..." << endl;
+	//return;
+	timer.Start();
+
+	//	Sleep(2000);
+
+	float last_sum_squared_errors = 0.0f;
+	int positive_error_delta_count = 0;
+	int negative_error_delta_count = 0;
+	int alternation_count = 0;
+
+	float tolerance = 0.05;
+
+	matrix Cost_Matrix(1, 3);
+
+	matrix scores(training_set.size(), 3);
+	matrix expect(training_set.size(), 3);
+	for (int mm = 0; mm < num_iterations; mm++)
+	{
+
+		for (int q = 0; q < training_set.size(); q++)
+		{
+			// index remap the shuffled set to the original data
+			input_matrix(0, 0) = data[training_set[q]][0];
+			input_matrix(0, 1) = data[training_set[q]][1];
+
+
+			matrix expected(1, 3);
+			for (int p = 0; p < 3; p++)
+			{
+				if ((int)data[training_set[q]][2] == p)
+				{
+					expected(0, p) = 1.0;
+				}
+				else
+				{
+					expected(0, p) = 0.0;
+				}
+			}
+
+
+			// feed forward
+
+
+			matrix output = neuralNet->FeedForward_ReLU(input_matrix);
+
+
+			float sum_outputs = 0.0;
+			for (int p = 0; p < 3; p++)
+			{
+				scores(q, p) = output(0, p);
+
+				expect(q, p) = expected(0, p);
+			}
+
+
+
+
+
+			// back propagate output
+			matrix probs_(1, 3);
+
+
+			for (int i = 0; i < 3; i++)
+			{
+				probs_(0, i) = output(0, i);
+
+				if (expected(0, i) == 1.0)
+					probs_(0, i) = probs_(0, i) - 1;
+
+
+				//if (expected(0, i) == 1.0)
+				//{
+				//	probs_(0, i) = probs(0, i) - 1;
+				//}
+			}
+			neuralNet->BackPropagateErrors(probs_);
+
+
+			// weight deltas
+			neuralNet->ComputeDeltas(probs_, expected, training_set.size(), alpha, beta);
+
+			// update weights
+			neuralNet->UpdateWeights(reg);
+
+
+
+
+		}
+
+		//	scores = neuralNet->Compute_Probabilities(scores);
+		matrix probs = scores;
+		//cout << "scores: " << scores.NumRows() << ", " << scores.NumCols() << endl;
+
+		scores = neuralNet->Compute_Log_Probabilities(probs, expect);
+
+
+		float data_loss = neuralNet->Compute_Data_Loss(scores, training_set.size());
+
+		float reg_loss = neuralNet->Compute_Regularization_Loss(reg);
+
+		float total_loss = data_loss + reg_loss;
+
+		if (mm % 20 == 0)
+			cout << "total loss: " << total_loss << ", data_loss: " << data_loss << ", reg loss: " << reg_loss << endl;
+
+		for (int q = 0; q < training_set.size(); q++)
+		{
+
+		}
+
+
+
+
+
+
+
+	}
+	timer.Update();
+	timer.Stop();
+	double time_taken = timer.GetTimeDelta();
+	cout << "Finished training, Total calculation performed in " << time_taken << " seconds" << endl;
+
+	time_ += time_taken;
+
+	sum_squared_errors = 0.0f; // used here to count the number of correct guesses
+
+	for (int q = 0; q < test_set.size(); q++)
+	{
+
+
+		input_matrix(0, 0) = data[test_set[q]][0];
+		input_matrix(0, 1) = data[test_set[q]][1];
+
+		//input_matrix(0, 2) = -1.0f; // bias is always -1
+
+
+
+		matrix test_output = neuralNet->FeedForward_ReLU(input_matrix);
+
+		if (test_output.NumCols() != 3) cout << "should have more columns" << endl;
+
+		int actual_type = (int)data[test_set[q]][2];
+
+		int found_type = 0;
+
+		if ((test_output(0, 0) > (1 - tolerance)) && (test_output(0, 1) < tolerance) && (test_output(0, 2) < tolerance))
+		{
+			found_type = 0;
+		}
+		if ((test_output(0, 0) < tolerance) && (test_output(0, 1) > (1 - tolerance)) && (test_output(0, 2) < tolerance))
+		{
+			found_type = 1;
+		}
+		if ((test_output(0, 0) < tolerance) && (test_output(0, 1) < tolerance) && (test_output(0, 2) > (1 - tolerance)))
+		{
+			found_type = 2;
+		}
+
+		//	cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
+
+		if (found_type == actual_type) sum_squared_errors += 1.0f;
+	}
+
+	cout << "Finished Test, Total classified correctly of " << test_set.size() << " tested: " << (int)sum_squared_errors << endl;
+
+}
+
+
+void Compute_IRIS_data_version_4_(int num_iterations, vector<vector<float>> &data, vector<int> &training_set, vector<int> &test_set, vector<int> &indexes, double &time_)
+{
+	Timer timer;
+
+
+
+	int input_data_size = 1;
+	int num_inputs = 2;
+	int num_hidden = 20;
+	int num_hidden2 = 18;
+	int num_hidden3 = 8;
+	int num_outputs = 3;
+
+	// ==========================================
+	matrix input_matrix(1, num_inputs);
+
+
+	float output_error = 0.0f;
+
+
+
+	float alpha = 0.5f;
+	float beta = 0.05f;
+
+	float reg = 0.001;
+
+	float sum_squared_errors = 0.0f;
+
+	vector<int> layer_sizes;
+	layer_sizes.push_back(num_inputs);
+	layer_sizes.push_back(num_hidden);
+	//layer_sizes.push_back(num_hidden2);
+	//layer_sizes.push_back(num_hidden3);
+	layer_sizes.push_back(num_outputs);
+
+	Improved_Layer::Linked_Layer_Loop_Eval::NeuralNetwork *neuralNet =
+		new Improved_Layer::Linked_Layer_Loop_Eval::NeuralNetwork(layer_sizes);
+
+
+
+
+
+
+
+
+	//	indexes
+	//vector< matrix > output_buffer;
+
+	cout << endl;
+	cout << "Training, please wait ..." << endl;
+	//return;
+	timer.Start();
+
+	//	Sleep(2000);
+
+	float last_sum_squared_errors = 0.0f;
+	int positive_error_delta_count = 0;
+	int negative_error_delta_count = 0;
+	int alternation_count = 0;
+
+	float tolerance = 0.05;
+
+	matrix Cost_Matrix(1, 3);
+
+	matrix scores(training_set.size(), 3);
+	matrix expect(training_set.size(), 3);
+	for (int mm = 0; mm < num_iterations; mm++)
+	{
+
+		for (int q = 0; q < training_set.size(); q++)
+		{
+			// index remap the shuffled set to the original data
+			input_matrix(0, 0) = data[training_set[q]][0];
+			input_matrix(0, 1) = data[training_set[q]][1];
+
+
+			matrix expected(1, 3);
+			for (int p = 0; p < 3; p++)
+			{
+				if ((int)data[training_set[q]][2] == p)
+				{
+					expected(0, p) = 1.0;
+				}
+				else
+				{
+					expected(0, p) = 0.0;
+				}
+			}
+
+
+			// feed forward
+
+
+			matrix output = neuralNet->FeedForward_ReLU(input_matrix);
+
+			for (int p = 0; p < 3; p++)
+			{
+				scores(q, p) = output(0, p);
+				expect(q, p) = expected(0, p);
+			}
+
+			matrix errors = expected - output;
+			//errors = ln(output);// *(-1);
+			matrix errors2 = errors;
+
+			Cost_Matrix = Cost_Matrix + pow(errors2, 2);
+
+
+
+
+
+
+		}
+
+		scores = neuralNet->Compute_Probabilities(scores);
+		matrix probs = scores;
+		//cout << "scores: " << scores.NumRows() << ", " << scores.NumCols() << endl;
+
+		scores = neuralNet->Compute_Log_Probabilities(scores, expect);
+
+
+		float data_loss = neuralNet->Compute_Data_Loss(scores, training_set.size());
+
+		float reg_loss = neuralNet->Compute_Regularization_Loss(reg);
+
+		float total_loss = data_loss + reg_loss;
+
+		if (mm % 20 == 0)
+			cout << "total loss: " << total_loss << ", data_loss: " << data_loss << ", reg loss: " << reg_loss << endl;
+
+		for (int q = 0; q < training_set.size(); q++)
+		{
+			// back propagate output
+			matrix probs_(1, 3);
+			matrix expected(1, 3);
+
+			for (int i = 0; i < 3; i++)
+			{
+				probs_(0, i) = probs(q, i);
+				expected(0, i) = expect(q, i);
+
+				//if (expected(0, i) == 1.0)
+				//{
+				//	probs_(0, i) = probs(0, i) - 1;
+				//}
+			}
+			neuralNet->BackPropagateErrors(probs_,expected,training_set.size(), alpha, beta);
+
+
+			// weight deltas
+			neuralNet->ComputeDeltas(probs_, expected, training_set.size(), alpha, beta);
+		}
+
+
+		// update weights
+		neuralNet->UpdateWeights(reg);
+
+		//Cost_Matrix.print(3);
+		Cost_Matrix.ToZero();
+
+
+
+	}
+	timer.Update();
+	timer.Stop();
+	double time_taken = timer.GetTimeDelta();
+	cout << "Finished training, Total calculation performed in " << time_taken << " seconds" << endl;
+
+	time_ += time_taken;
+
+	sum_squared_errors = 0.0f; // used here to count the number of correct guesses
+
+	for (int q = 0; q < test_set.size(); q++)
+	{
+
+
+		input_matrix(0, 0) = data[test_set[q]][0];
+		input_matrix(0, 1) = data[test_set[q]][1];
+
+		//input_matrix(0, 2) = -1.0f; // bias is always -1
+
+
+
+		matrix test_output = neuralNet->FeedForward_ReLU(input_matrix);
+
+		if (test_output.NumCols() != 3) cout << "should have more columns" << endl;
+
+		int actual_type = (int)data[test_set[q]][2];
+
+		int found_type = 0;
+
+		if ((test_output(0, 0) > (1 - tolerance)) && (test_output(0, 1) < tolerance) && (test_output(0, 2) < tolerance))
+		{
+			found_type = 0;
+		}
+		if ((test_output(0, 0) < tolerance) && (test_output(0, 1) > (1 - tolerance)) && (test_output(0, 2) < tolerance))
+		{
+			found_type = 1;
+		}
+		if ((test_output(0, 0) < tolerance) && (test_output(0, 1) < tolerance) && (test_output(0, 2) > (1 - tolerance)))
+		{
+			found_type = 2;
+		}
+
+		//	cout << "Test Sample: " << q << ", Found Type: " << found_type << ", Actual Type: " << actual_type << endl;
+
+		if (found_type == actual_type) sum_squared_errors += 1.0f;
+	}
+
+	cout << "Finished Test, Total classified correctly of " << test_set.size() << " tested: " << (int)sum_squared_errors << endl;
+
+}
 
 
 int main(int argc, char* argv[])
@@ -701,9 +1143,9 @@ int main(int argc, char* argv[])
 	cout << "===========================================================================================" << endl;
 	cout << "Testing Linked_Layer_Loop_Eval neural net object" << endl;
 
-	Compute_IRIS_data_version_2_<Vanilla_Layer::Linked_Layer_Loop_Eval::NeuralNetwork>
-		(600, iris_data, training_set, test_set,
-		indexes, total_time);
+//	Compute_IRIS_data_version_2_<Vanilla_Layer::Linked_Layer_Loop_Eval::NeuralNetwork>
+//		(600, iris_data, training_set, test_set,
+//		indexes, total_time);
 
 	cout << endl << endl;
 	cout << "Finished testing linked layer with iterative evaluation neural net object" << endl;
@@ -789,17 +1231,29 @@ int main(int argc, char* argv[])
 			test_set_spiral.push_back(indexes_spiral[i]);
 		}
 	}
-
+	
 	total_time = 0;
 	cout << "===========================================================================================" << endl;
 	cout << "Testing Linked_Layer_Loop_Eval neural net object" << endl;
 
-	Compute_IRIS_data_version_3_<Vanilla_Layer::Linked_Layer::NeuralNetwork>
-		(500, X, training_set_spiral, test_set_spiral,
+	Compute_IRIS_data_version_3_
+		(1500, X, training_set_spiral, test_set_spiral,
 		indexes_spiral, total_time);
 
 	cout << endl << endl;
 	cout << "Finished testing linked layer with iterative evaluation neural net object" << endl;
+	
+
+	/*total_time = 0;
+	cout << "===========================================================================================" << endl;
+	cout << "Testing Linked_Layer_Loop_Eval neural net object" << endl;
+
+	Compute_IRIS_data_version_4_
+		(500, X, training_set_spiral, test_set_spiral,
+		indexes_spiral, total_time);
+
+	cout << endl << endl;
+	cout << "Finished testing linked layer with iterative evaluation neural net object" << endl;*/
 	return 0;
 }
 
