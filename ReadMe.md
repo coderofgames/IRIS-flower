@@ -2,6 +2,8 @@
     CONSOLE APPLICATION : ArtificialNeuralNetwork Project Overview
 ========================================================================
 
+NOTE: This sample will fry your brains 
+
 NOTE: *Update* starting to implement a solution to the dissappearing gradient
 problem. There are multiple versions of the layered neural network in 
 their own namepsaces because I need to keep hopping back to previous versions
